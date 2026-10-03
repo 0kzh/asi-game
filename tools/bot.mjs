@@ -85,9 +85,12 @@ await page.evaluate((cfg) => {
     const designBtn = projs.find(e => /^Design /.test(e.querySelector(".pt").textContent));
     if (designBtn && !designBtn.disabled) { designBtn.click(); acts++; B.actionsTaken++; }
     const savingRP = designBtn && designBtn.disabled && / research/.test(designBtn.querySelector(".pc").textContent);
+    // while saving research for a design, still buy research projects that cost under a tenth of it
+    const rpOf = e => { const p = e.dataset.id && projectById(e.dataset.id); return p ? (p.cost().rp || 0) : 0; };
+    const designRP = savingRP ? rpOf(designBtn) : 0;
     for (let i = 0; i < 2 && acts < MAXA; i++) {
       const pb = projs.find(e => e.isConnected && !e.disabled && !/^(Train on User|Grant Autonomy)/.test(e.querySelector(".pt").textContent) &&
-        !(savingRP && / research/.test(e.querySelector(".pc").textContent)));
+        !(savingRP && rpOf(e) > designRP * 0.1));
       if (pb) { pb.click(); acts++; B.actionsTaken++; }
     }
     // compute allocation: what a sensible player converges to (AI 2027's allocation table, roughly)
@@ -103,6 +106,7 @@ await page.evaluate((cfg) => {
     if (!S.training) want.train = S.alloc.train; // only consumed while training; leave as is
     tot = Object.values(want).reduce((a, b) => a + b, 0);
     if (tot <= 95) Object.assign(S.alloc, want);
+    if (S.stage >= 3) act(/^red-team/);
     // stage 1 manual verbs
     if (S.stage === 1) {
       if (/tokens/.test(d.blocker || "") || S.data < 1e7) act(/^scrape the web$/);

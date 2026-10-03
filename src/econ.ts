@@ -1,7 +1,7 @@
 // Takeoff — derived quantities. Pure reads of S; no mutation. Everything the UI shows comes through here.
 
 const ELASTICITY = 2.4;
-const WEB_TOTAL = 6e13;
+const WEB_TOTAL = 2.5e12;
 
 function ladder(): GenDef[] { return S.ladder === "safer" ? SAFER_GENS : GENS; }
 
@@ -199,7 +199,7 @@ function rpRate(): number { return humanRP() + aiRP(); }
 /** Paperclips' memory: the research cap. Early it's experiment compute; once the AIs do research, it scales with them. */
 function rpCap(): number {
   const exp = split().exp * perf();
-  return 100 + S.rpCapBonus + exp * 40 + (S.stage >= 3 ? 600 * aiRP() : 0);
+  return 100 + S.rpCapBonus + exp * 40 + (S.stage >= 3 ? 300 * rpRate() : 0);
 }
 
 /** AI 2027's "AI R&D progress multiplier": total progress relative to unaided humans. */
@@ -226,7 +226,8 @@ function insightRate(): number {
 // ---------- data ----------
 
 function crawlRate(): number {
-  return S.crawlers * 3e5 * (flag("crawlFarm") ? 3 : 1) * S.dataMult * Math.max(0, S.webLeft / WEB_TOTAL);
+  // Stage 2 crawlers are whole fleets, not scripts.
+  return S.crawlers * 3e5 * (flag("crawlFarm") ? 3 : 1) * (S.stage >= 2 ? 400 : 1) * S.dataMult * Math.max(0, S.webLeft / WEB_TOTAL);
 }
 
 function synthRate(): number {
@@ -238,7 +239,7 @@ function synthRate(): number {
 
 function userDataRate(): number { return flag("userData") ? sold() * 1500 * S.dataMult : 0; }
 
-function dealRate(): number { return S.dataDeals * 2e7 * S.dataMult; }
+function dealRate(): number { return S.dataDeals * 2e8 * S.dataMult * Math.max(0.05, S.webLeft / WEB_TOTAL); }
 
 function dataRate(): number { return crawlRate() + synthRate() + userDataRate() + dealRate(); }
 
@@ -307,7 +308,7 @@ function frontierModel(): ModelRec | null {
 }
 
 /** Alignment research "needed" to keep a model of capability c honest. */
-function alignNeed(c: number): number { return 40 * Math.pow(Math.max(c, 50) / 100, 2.2); }
+function alignNeed(c: number): number { return 2000 * Math.pow(Math.max(c, 50) / 100, 2.2); }
 
 function alignRate(): number {
   const fromStaff = S.safety * 0.5 * (S.stage >= 3 ? 1.5 : 1);

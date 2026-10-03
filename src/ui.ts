@@ -213,14 +213,15 @@ const PANELS: PanelDef[] = [
       txt(pr, () => "price per task: " + fmtMoney(S.price) + (S.autoPrice ? " <span class='dim'>(auto)</span>" : ""), undefined, "inline");
       btn(b, { label: () => "marketing (level " + S.mkt + ")", onClick: buyMarketing, enabled: () => S.funds >= marketingCost(), visible: () => rv("marketing"), buy: true,
         tip: () => "demand ×1.35 · " + fmtMoney(marketingCost()) });
-      txt(b, () => "market share: " + fmtPct(marketShare()) + " <span class='dim'>(" + bestRival().name + " has a better model)</span>", () => S.deployed >= 0 && marketShare() < 0.99);
+      txt(b, () => "market share: " + fmtPct(marketShare()) + " <span class='dim'>(" + bestRival().name + " has a better model)</span>", () => S.deployed >= 0 && marketShare() < 0.99 && S.month >= 0.8);
+      txt(b, () => "only " + fmtPct(S.gpu > 0 ? split().serve / S.gpu : 0) + " of compute is serving customers. revenue is starving", () => S.deployed >= 0 && rv("alloc") && S.gpu > 0 && split().serve / S.gpu < 0.25, "row warn");
     },
   },
   {
     id: "funding", title: "Investors", visible: () => rv("funding") && S.round < ROUNDS.length,
     build: b => {
       txt(b, () => S.round < ROUNDS.length ? "next: " + ROUNDS[S.round].name + " at <b>" + fmt(ROUNDS[S.round].at) + "</b> tasks" : "");
-      bar(b, () => S.round < ROUNDS.length ? Math.log10(1 + S.tasks) / Math.log10(1 + ROUNDS[S.round].at) : 1, () => "", () => S.round < ROUNDS.length);
+      bar(b, () => S.round < ROUNDS.length ? S.tasks / ROUNDS[S.round].at : 1, () => "", () => S.round < ROUNDS.length);
     },
   },
   {
@@ -255,7 +256,7 @@ const PANELS: PanelDef[] = [
     },
   },
   {
-    id: "infra", title: "Infrastructure", visible: () => rv("infra"),
+    id: "infra", title: "Infrastructure", visible: () => rv("infra") && S.stage < 4,
     build: b => {
       txt(b, () => "slots: " + fmtShort(S.gpu) + " / " + fmtShort(gpuCapacity()) + " GPUs");
       txt(b, () => { const p = perf(); return "power: " + fmtShort(S.powerMW) + " MW / " + fmtShort(powerNeedMW()) + " MW needed" + (p < 0.999 ? " · <span class='warn'>throttled to " + fmtPct(p) + "</span>" : ""); });
@@ -311,7 +312,6 @@ const PANELS: PanelDef[] = [
       txt(al, () => "<b>allocation</b>", () => rv("alloc"), "row sub");
       allocRow(al, "serve", "serving customers", () => rv("alloc") && S.deployed >= 0, () => "everything not allocated elsewhere answers customers");
       allocRow(al, "train", "training", () => rv("alloc"), () => "trains the next model (only while a run is in progress)");
-      allocRow(al, "exp", "experiments", () => rv("alloc") && flag("experiments"), () => "each GPU here raises the research cap by 40");
       allocRow(al, "synth", "synthetic data", () => rv("alloc") && flag("synth"), () => "the deployed model writes training data: " + rate(synthRate()) + " tokens");
       allocRow(al, "research", "AI research", () => rv("alloc") && flag("automation"), () => "copies of the internal model doing research: " + rate(aiRP()) + " research");
       allocRow(al, "monitor", "monitoring & alignment", () => rv("alloc") && flag("monitors"), () => "older models watch newer ones. ~4% of compute covers everything");
@@ -319,15 +319,15 @@ const PANELS: PanelDef[] = [
     },
   },
   {
-    id: "data", title: "Data", visible: () => rv("models") && (S.data > 0 || flag("crawlers")) && S.stage < 5,
+    id: "data", title: "Data", visible: () => (flag("crawlers") || flag("datasets_on") || S.stage >= 2) && S.stage < 4,
     build: b => {
-      txt(b, () => "data: <b>" + fmtShort(S.data) + "</b> tokens" + (dataRate() > 0 ? " <span class='dim'>(" + rate(dataRate()) + ")</span>" : ""));
-      txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL), () => flag("crawlers"), "row dim");
+      txt(b, () => "incoming: " + rate(dataRate(), " tokens/s"));
+      txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL, S.webLeft < WEB_TOTAL * 0.1 ? 1 : 0) + (S.webLeft < WEB_TOTAL * 0.25 ? " <span class='warn'>· the data wall</span>" : ""), () => flag("crawlers"), "row dim");
       const r = div(b, "btnRow");
-      btn(r, { label: () => "add crawler (" + S.crawlers + ")", onClick: buyCrawler, visible: () => flag("crawlers") && S.stage <= 2, enabled: () => S.funds >= crawlerCost(), buy: true,
-        tip: () => fmtMoney(crawlerCost()) + " · +" + fmtShort(3e5 * S.dataMult * (flag("crawlFarm") ? 3 : 1) * Math.max(0, S.webLeft / WEB_TOTAL)) + " tokens/s" });
-      btn(r, { label: "buy dataset", onClick: buyDataset, visible: () => flag("datasets_on") && S.stage <= 3, enabled: () => S.funds >= datasetCost(), buy: true,
-        tip: () => fmtMoney(datasetCost()) + " · +" + fmtShort(datasetSize()) + " tokens" });
+      btn(r, { label: () => "add crawler (" + S.crawlers + ")", onClick: buyCrawler, visible: () => flag("crawlers") && S.stage <= 2, enabled: () => S.funds >= crawlerCost() * (S.stage >= 2 ? 1e4 : 1), buy: true,
+        tip: () => fmtMoney(crawlerCost() * (S.stage >= 2 ? 1e4 : 1)) + " · +" + fmtShort(3e5 * S.dataMult * (flag("crawlFarm") ? 3 : 1) * (S.stage >= 2 ? 400 : 1) * Math.max(0, S.webLeft / WEB_TOTAL)) + " tokens/s" });
+      btn(r, { label: "buy dataset", onClick: buyDataset, visible: () => flag("datasets_on") && S.stage <= 3 && S.webLeft > WEB_TOTAL * 0.01, enabled: () => S.funds >= datasetCost() && datasetSize() > 1e6, buy: true,
+        tip: () => datasetSize() > 1e6 ? fmtMoney(datasetCost()) + " · +" + fmtShort(datasetSize()) + " tokens" : "the brokers have nothing left to sell" });
     },
   },
   {
@@ -339,11 +339,12 @@ const PANELS: PanelDef[] = [
       btn(r, { label: () => "hire safety (" + S.safety + ")", onClick: () => hire("safety"), visible: () => flag("safetyUnlocked"), enabled: () => S.funds >= hireCost("safety"), buy: true,
         tip: () => fmtMoney(hireCost("safety")) + " · alignment research" });
       bar(b, () => S.rp / rpCap(), () => "research: " + fmt(S.rp) + " / " + fmt(rpCap()) + " (" + rate(rpRate()) + ")");
+      allocRow(b, "exp", "experiments compute", () => flag("experiments"), () => S.stage >= 3 ? "compute for experiments. the cap also grows with AI research" : "each GPU on experiments raises the research cap by 40");
       txt(b, () => { const p = capBlockedProject(); return p ? "the research cap is too low for <i>" + p + "</i>." + (flag("experiments") ? " put more compute on experiments." : " the researchers need an experiment budget.") : ""; },
         () => !!capBlockedProject(), "row warn");
       txt(b, () => "insights: <b>" + fmt(S.insight, 1) + "</b> <span class='dim'>(" + rate(insightRate()) + (insightCapped() ? ", research is full ×6" : ", ×6 while research is full") + ")</span>", () => flag("insights"));
       txt(b, () => "AI-assisted research: <b>" + aiAssist().toFixed(1) + "x</b> <span class='dim'>(copilots)</span>", () => S.stage === 2 && aiAssist() > 1.05);
-      txt(b, () => "AI research multiplier: <b>" + rdMultiplier().toFixed(1) + "x</b>", () => S.internalModel >= 0);
+      txt(b, () => "AI research multiplier: <b>" + fmtMult(rdMultiplier()) + "</b>", () => S.internalModel >= 0);
       txt(b, () => "human share of progress: " + fmtPct(humanShare(), humanShare() < 0.1 ? 1 : 0), () => S.internalModel >= 0, "row dim");
     },
   },
@@ -361,9 +362,9 @@ const PANELS: PanelDef[] = [
           if (!e) {
             e = el("button", "project" + (p.gate ? " gate" : ""));
             e.dataset.buy = "1";
+            e.dataset.id = p.id;
             e.innerHTML = "<b class='pt'></b> <span class='pc'></span><div class='pd'></div>";
             e.addEventListener("click", () => { buyProject(p.id); refreshNow(); });
-            list.appendChild(e);
             btns[p.id] = e;
             e.classList.add("blink");
           }
@@ -372,6 +373,9 @@ const PANELS: PanelDef[] = [
           setText(e.querySelector(".pd") as HTMLElement, p.desc);
           e.disabled = !projectAffordable(p);
         }
+        // Newest on top (as in Paperclips), with the stage's milestone goals pinned above the rest.
+        const order = shown.slice().sort((a, b) => projectRank(a) - projectRank(b) || S.projShown[b.id] - S.projShown[a.id]);
+        order.forEach((p, i) => { const e = btns[p.id]; if (list.children[i] !== e) list.insertBefore(e, list.children[i] || null); });
       });
     },
   },
@@ -380,8 +384,6 @@ const PANELS: PanelDef[] = [
     build: b => {
       storeRow(b, "funds", () => fmtMoneyShort(S.funds), () => true, () => "revenue " + rate(revenue()) + (salaries() > 0 ? " · salaries −" + fmtMoneyShort(salaries()) + "/s" : "") + (S.ubi > 0 ? " · UBI −" + fmtMoneyShort(ubiCost()) + "/s" : ""));
       storeRow(b, "data", () => fmtShort(S.data), () => S.data > 0 || S.dataUsed > 0, () => "crawlers " + rate(crawlRate()) + " · synthetic " + rate(synthRate()) + " · users " + rate(userDataRate()) + " · licences " + rate(dealRate()));
-      storeRow(b, "GPUs", () => fmtShort(S.gpu), () => S.gpu > 1 || rv("compute"));
-      storeRow(b, "research", () => fmtShort(S.rp), () => flag("researchUnlocked"), () => "humans " + rate(humanRP()) + (aiRP() > 0 ? " · AI " + rate(aiRP()) : ""));
       storeRow(b, "insights", () => fmt(S.insight, 1), () => flag("insights"));
       storeRow(b, "materials", () => fmtShort(S.materials) + " t", () => S.materials > 0);
       storeRow(b, "robots", () => fmtShort(S.robots), () => S.robots > 0);
@@ -394,8 +396,10 @@ const PANELS: PanelDef[] = [
       bar(b, () => legibility(), () => "legible thoughts: " + fmtPct(legibility()) + (S.neuralese ? " (neuralese)" : ""));
       bar(b, () => monitorStrength(), () => "monitor strength: " + fmtPct(monitorStrength()), () => flag("monitors"));
       bar(b, () => alignConfidence(), () => "alignment confidence: " + fmtPct(alignConfidence()), undefined, "conf");
-      txt(b, () => "alignment research: " + fmt(S.alignRes) + " <span class='dim'>(needed for the frontier: ~" + fmt(alignNeed(frontierCap())) + ")</span>");
+      bar(b, () => S.alignRes / alignNeed(frontierCap()), () => "alignment research: " + fmtPct(Math.min(9.99, S.alignRes / alignNeed(frontierCap()))) + " of what the frontier needs");
       txt(b, () => "warning signs: " + Math.floor(S.alarm), () => S.alarm >= 1, "row warn");
+      btn(b, { label: "red-team the frontier model", onClick: redTeam, cooldown: "redteam", cdMax: () => REDTEAM_CD, visible: () => flag("redteam") && !S.ending,
+        tip: () => "+" + fmt(redTeamGain()) + " alignment research · may surface warning signs" });
       txt(b, () => "the confidence number is computed by the models you're testing.", () => S.neuralese || legibility() < 0.4, "row dim");
     },
   },
@@ -431,6 +435,7 @@ const PANELS: PanelDef[] = [
   {
     id: "society", title: "Society", visible: () => rv("society"),
     build: b => {
+      bar(b, () => S.approval / 100, () => "approval: " + Math.round(S.approval) + "%");
       txt(b, () => "unemployment: " + fmtPct(Math.min(0.95, S.jobs / workforce()), 1));
       bar(b, () => S.unrest / 100, () => "unrest: " + Math.round(S.unrest), undefined, "threat");
       const r = div(b, "btnRow");
@@ -440,7 +445,7 @@ const PANELS: PanelDef[] = [
     },
   },
   {
-    id: "public", title: "Public", visible: () => rv("public"),
+    id: "public", title: "Public", visible: () => rv("public") && S.stage < 4,
     build: b => {
       bar(b, () => S.approval / 100, () => "approval: " + Math.round(S.approval) + "%");
       txt(b, () => "jobs automated: " + fmtShort(S.jobs));
@@ -459,7 +464,7 @@ const PANELS: PanelDef[] = [
     },
   },
   {
-    id: "stats", title: "Stats", visible: () => rv("stats"),
+    id: "stats", title: "Stats", visible: () => rv("stats") && S.stage < 4,
     build: b => {
       txt(b, () => "revenue earned: " + fmtMoney(S.fundsEarned));
       txt(b, () => "models trained: " + S.models.length);
@@ -516,7 +521,7 @@ function updateUI(): void {
   setText($("tasks"), fmtBig(S.tasks));
   const tps = sold() + (internalModel() ? researchCopies() * rateOf(internalModel()) * 0.5 : 0) + robotLaborTPS() + (S.flags.cosmicTPS || 0);
   setText($("tps"), S.deployed >= 0 || S.ending ? fmtRate(tps) + " per second" : "");
-  setText($("dateLine"), monthLabel(S.month, true));
+  setText($("dateLine"), S.stage >= 5 ? monthLabel(S.month, true) : dateLabel(S.month));
   const title = docTitle();
   if (title !== lastStageTitle) { lastStageTitle = title; document.title = title; setText($("place"), title.toLowerCase()); }
   // panels
@@ -540,6 +545,8 @@ function capBlockedProject(): string {
   for (const p of shownProjects()) { const c = p.cost(); if (c.rp && c.rp > cap) return p.title; }
   return "";
 }
+
+function fmtMult(x: number): string { return x >= 2000 ? "2,000x+" : (x < 100 ? x.toFixed(1) : Math.round(x).toLocaleString("en-US")) + "x"; }
 
 function fmtBig(n: number): string {
   if (n < 1e15) return Math.floor(n).toLocaleString("en-US");
@@ -599,7 +606,7 @@ function renderEvent(): void {
     const bx = $("eventButtons");
     bx.innerHTML = "";
     eventChoiceBtns = [];
-    sc.choices.forEach((ch, i) => {
+    sceneChoices(sc).forEach((ch, i) => {
       const b = div(bx, "btn evbtn");
       b.setAttribute("role", "button");
       b.tabIndex = 0;
@@ -612,10 +619,7 @@ function renderEvent(): void {
       eventChoiceBtns.push({ b, i, ch });
     });
   }
-  for (const x of eventChoiceBtns) {
-    const ok = (!x.ch.available || x.ch.available()) && canAfford(x.ch.cost ? x.ch.cost() : undefined);
-    x.b.classList.toggle("disabled", !ok);
-  }
+  for (const x of eventChoiceBtns) x.b.classList.toggle("disabled", !choiceOk(x.ch));
 }
 
 // ---------- full-screen beat ----------

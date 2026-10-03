@@ -25,9 +25,10 @@ function defensePower(): number {
 const CRISES: CrisisDef[] = [
   {
     id: "grid", name: "grid attack",
-    when: () => S.stage === 3 && (flag("weightsStolen") || flag("openWeights") || flag("gulf")) && S.t > (S.metrics.stageTimes[2] || 1e12) + 260,
+    // Sooner if a model of yours is loose in the world; it comes regardless, with someone else's model.
+    when: () => S.stage === 3 && S.t > (S.metrics.stageTimes[2] || 1e12) + ((flag("weightsStolen") || flag("openWeights") || flag("gulf")) ? 260 : 1140),
     intro: ["a hacking group called Sandcat, believed to work for Iran's Revolutionary Guard, is inside the eastern power grid.",
-      "they're using a stolen model to write exploits faster than anyone can patch them.",
+      "they're using a stolen frontier model to write exploits faster than anyone can patch them. nobody will say whose.",
       "substations in four states go dark. hospitals are on generators."],
     threatRate: () => 0.0045,
     responseRate: () => defensePower() * 0.06 + (flag("cyberDefense") ? 0.006 : 0),

@@ -54,6 +54,7 @@ body {
 .note { margin-bottom: 10px; line-height: 1.25; }
 .note.big { font-weight: bold; }
 .note.warn { color: var(--warn); }
+.note.out { font-style: italic; }
 .note.fresh { animation: noteIn 0.6s linear; }
 @keyframes noteIn { from { opacity: 0; } }
 #logFade {

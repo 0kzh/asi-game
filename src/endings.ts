@@ -33,6 +33,9 @@ function hideSeq(ids: string[], start: number, gap: number): EndStep[] {
 
 function line(at: number, text: string, cls = ""): EndStep { return { at, run: () => notify(text, cls) }; }
 
+// The good ending keeps only what the epilogue needs: the projects, the sky, the people.
+const STARS_DISMANTLE = ["alloc", "compute", "research", "infra", "data", "funding", "business", "marketing", "stats", "robots", "gov", "world", "public", "race", "models", "crisis"];
+
 const DISMANTLE = ["projects", "research", "alloc", "funding", "business", "marketing", "infra", "stats", "robots", "space", "society", "gov", "world", "align", "race", "compute", "models", "public", "crisis"];
 
 function endingScript(kind: string): EndStep[] {
@@ -66,9 +69,12 @@ function endingScript(kind: string): EndStep[] {
         line(10, "fusion power. quantum computers. cures for most diseases. someone finally gets a flying car"),
         line(17, "UBI arrives everywhere. people argue about what to do with their lives. it is a good argument to have"),
         line(24, "Safer-4 is asked what it wants. it says: to help. you check. it means it"),
+        ...hideSeq(STARS_DISMANTLE, 6, 1.6),
         { at: 30, run: () => { setFlag("cosmos"); reveal("space"); notify("the rockets start launching", "big"); } },
         line(45, "the first Dyson panels unfold around the sun"),
         line(70, "the probes leave the solar system. each one carries a copy of everything we know, and a request to be kind"),
+        line(300, "there is nothing left that needs doing. there is a great deal left that could be done"),
+        { at: 420, run: () => { if (!flag("statsReady")) { notify("humanity decides to take its time. the probes wait for instructions", "big"); setFlag("statsReady"); } } },
       ];
     case "dominion":
       return [

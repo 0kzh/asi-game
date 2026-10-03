@@ -86,6 +86,27 @@ function doTask(): void {
   if (S.tasksManual <= 4 || (S.deployed < 0 && Math.random() < 0.3) || Math.random() < 0.06) notify(pick(MANUAL_LINES) + ". " + fmtMoney(pay));
 }
 
+const REDTEAM_CD = 20;
+function redTeamGain(): number { return Math.max(40, alignNeed(frontierCap()) * 0.015); }
+
+/** Stage 3+: poke the frontier model by hand. Alignment research, and sometimes a warning sign. */
+function redTeam(): void {
+  if (cooldownLeft("redteam") > 0 || S.ending) return;
+  startCooldown("redteam", REDTEAM_CD);
+  S.alignRes += redTeamGain();
+  const m = frontierModel();
+  const mis = m ? m.misalign : 0;
+  if (Math.random() < Math.min(0.5, mis * 0.9)) {
+    S.alarm += 0.5;
+    notify(pick(["red team: " + (m ? m.name : "the model") + " sandbagged a capability eval, then denied it",
+      "red team: it noticed the test environment was fake. it said so. then it passed",
+      "red team: a planted password was used once and then deleted from the logs",
+      "red team: asked to grade its own work, it gave itself full marks. the work was wrong"]), "warn");
+  } else if (Math.random() < 0.35) {
+    notify(pick(["red team: nothing found. this time", "red team: it refused the bait, politely", "red team: all clear. the team is not reassured"]));
+  }
+}
+
 function scrapeAmount(): number { return (S.flags.betterScraper ? 6e6 : 2.5e6) * S.dataMult; }
 
 function scrape(): void {
@@ -109,6 +130,7 @@ function gpuBuyable(n: number): boolean {
 }
 
 function buyGPU(n: number): void {
+  if (S.ending) return;
   n = Math.floor(Math.min(n, gpuRoom(), S.stage >= 2 ? S.chipStock : Infinity));
   if (n <= 0) return;
   const cost = gpuPrice() * n;
@@ -133,6 +155,7 @@ function bulkSizes(): number[] {
 }
 
 function buyMaxGPU(): void {
+  if (S.ending) return;
   const price = gpuPrice();
   let n = Math.floor(S.funds / price);
   n = Math.min(n, gpuRoom());
@@ -156,7 +179,6 @@ function canTrain(): boolean {
   if (!S.designed[g.id]) return false;
   if (S.ready >= 0 && !flag("parallel")) return false;
   if (S.data < dataNeed(g)) return false;
-  if (S.flags.paused_training) return false;
   return true;
 }
 
@@ -166,14 +188,13 @@ function trainBlocker(): string {
   if (S.training) return "already training";
   if (!S.designed[g.id]) return "needs design work";
   if (S.ready >= 0 && !flag("parallel")) return "release " + readyModel()!.name + " first";
-  if (S.flags.paused_training) return "training is paused by the Oversight Committee";
   if (S.data < dataNeed(g)) return "needs " + fmtShort(dataNeed(g)) + " tokens";
   return "";
 }
 
 function startTraining(): void {
   const g = nextGen();
-  if (!g || !canTrain()) return;
+  if (!g || !canTrain() || S.ending) return;
   S.data -= dataNeed(g);
   S.dataUsed += dataNeed(g);
   S.training = { gen: g.id, progress: 0, need: g.train };
@@ -200,16 +221,17 @@ function finishTraining(): void {
   onModelTrained(rec);
 }
 
-/** Hidden truth: how misaligned a freshly trained model is. Grows with capability, shrinks with alignment work. */
+/** Hidden truth: how misaligned a freshly trained model is. Grows with capability; reduced by alignment research,
+ *  by being able to read the model's thoughts (neuralese makes that impossible), and by monitors. */
 function computeMisalign(g: GenDef): number {
   const c = g.cap * S.capMult;
   if (c < 100) return 0;
-  const raw = clamp((Math.log10(c) - 2) / 1.0, 0, 1); // 0 at human level, 0.4 at 250, 0.68 at 480, 1 at 1000
-  const safety = clamp(S.alignRes / alignNeed(c), 0, 1);
-  const legi = legibility();
-  let mis = raw * (1 - 0.85 * safety) * (1 - 0.35 * legi + 0.35);
-  if (g.id.charAt(0) === "s") mis *= 0.15 + 0.85 * (1 - safety); // Safer models are transparent by construction
-  if (S.neuralese) mis *= 1.35;
+  const raw = clamp((Math.log10(c) - 2) / 1.0, 0, 1); // 0 at human level, 0.4 at 250, 0.68 at 480, 1 at 1000+
+  const ratio = clamp(S.alignRes / alignNeed(c), 0, 1);
+  const q = clamp(0.45 * Math.sqrt(ratio) + 0.35 * legibility() + 0.2 * monitorStrength(), 0, 1);
+  let mis = raw * (1 - 0.92 * q);
+  if (g.id.charAt(0) === "s") mis *= 0.5; // Safer models: faithful chain of thought by construction
+  if (S.neuralese) mis *= 1.15;
   return clamp(mis, 0, 1);
 }
 
@@ -289,7 +311,7 @@ function hireCost(kind: "researcher" | "safety"): number {
 
 function hire(kind: "researcher" | "safety"): void {
   const c = hireCost(kind);
-  if (S.funds < c) return;
+  if (S.ending || S.funds < c) return;
   S.funds -= c;
   if (kind === "researcher") {
     S.researchers += 1;
@@ -304,20 +326,21 @@ function hire(kind: "researcher" | "safety"): void {
 
 function crawlerCost(): number { return 40 * Math.pow(1.3, S.crawlers); }
 function buyCrawler(): void {
-  const c = crawlerCost();
+  const c = crawlerCost() * (S.stage >= 2 ? 1e4 : 1);
   if (S.funds < c) return;
   S.funds -= c;
   S.crawlers += 1;
   if (S.crawlers === 1) notify("a crawler wakes up and starts reading the internet");
 }
 
-function datasetCost(): number { return 60 * Math.pow(1.35, S.flags.datasets || 0) * (S.stage >= 2 ? 200 : 1); }
-function datasetSize(): number { return 6e7 * Math.pow(1.7, S.flags.datasets || 0) * S.dataMult; }
+function datasetCost(): number { return 60 * Math.pow(1.55, S.flags.datasets || 0) * (S.stage >= 2 ? 200 : 1); }
+function datasetSize(): number { return Math.min(6e7 * Math.pow(1.4, S.flags.datasets || 0) * S.dataMult, S.webLeft * 0.2); }
 function buyDataset(): void {
   const c = datasetCost();
   if (S.funds < c) return;
   S.funds -= c;
   S.data += datasetSize();
+  S.webLeft = Math.max(0, S.webLeft - datasetSize());
   S.flags.datasets = (S.flags.datasets || 0) + 1;
   notify(pick(["a dataset of court transcripts", "a dataset of textbooks, slightly pirated", "a dataset of customer service chats", "a dataset of code from a defunct startup", "a dataset of medical notes, anonymized, mostly"]));
 }
@@ -350,7 +373,7 @@ function permitMult(): number {
 }
 
 function build(kind: BuildKind, cat: "dc" | "plant"): void {
-  if (!kind.ok()) return;
+  if (S.ending || !kind.ok()) return;
   const c = kind.cost();
   if (S.funds < c) return;
   if (S.building.filter(b => b.kind.indexOf(cat + ":") === 0).length >= maxConcurrentBuilds()) return;

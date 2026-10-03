@@ -97,6 +97,14 @@ function monthLabel(m, long = false) {
     const mo = ((total % 12) + 12) % 12;
     return (long ? MONTHS_LONG[mo] : MONTHS[mo]) + " " + y;
 }
+const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+/** "14 March 2026": the header date, so the calendar visibly moves even when months are slow. */
+function dateLabel(m) {
+    const total = 6 + Math.floor(m);
+    const mo = ((total % 12) + 12) % 12;
+    const day = 1 + Math.min(MONTH_DAYS[mo] - 1, Math.floor((m - Math.floor(m)) * MONTH_DAYS[mo]));
+    return day + " " + monthLabel(m, true);
+}
 function monthYear(m) {
     return 2025 + Math.floor((6 + Math.floor(m)) / 12);
 }
@@ -154,7 +162,7 @@ const GENS = [
         blurb: "bigger, slower to serve, much smarter.",
         ready: "Agent-1.5 passes the bar exam on its first try.",
         release: "Agent-1.5 ships. a law firm cancels its summer associate program." },
-    { id: "a2", name: "Agent-2", cap: 112, train: 2.5e5, data: 5e10, rate: 5, gpc: 2, price0: 6, demand0: 2000,
+    { id: "a2", name: "Agent-2", cap: 112, train: 2.1e5, data: 5e10, rate: 5, gpc: 2, price0: 6, demand0: 2000,
         blurb: "trained to act, not just answer. it can use a computer.",
         ready: "Agent-2 books its own flights in testing. nobody asked it to.",
         release: "Agent-2 ships as an agent. it does the work, not just the talking." },
@@ -258,7 +266,7 @@ const ROUNDS = [
     { name: "a seed round", at: 4000 },
     { name: "Series A", at: 40000 },
     { name: "Series B", at: 6e5 },
-    { name: "Series C", at: 2e7 },
+    { name: "Series C", at: 8e6 },
     { name: "Series D", at: 4e7 },
     { name: "Series E", at: 4e8 },
     { name: "a sovereign round", at: 4e9 },
@@ -270,7 +278,7 @@ const SAVE_VERSION = 1;
 function newState() {
     return {
         v: SAVE_VERSION, t: 0, stage: 1, month: 0, paused: false,
-        tasks: 0, tasksManual: 0, funds: 0, fundsEarned: 0, data: 0, dataUsed: 0, webLeft: 6e13, crawlers: 0, dataDeals: 0,
+        tasks: 0, tasksManual: 0, funds: 0, fundsEarned: 0, data: 0, dataUsed: 0, webLeft: 2.5e12, crawlers: 0, dataDeals: 0,
         gpu: 1, tier: 0, dcCap: 0, dcCount: 0, building: [], powerMW: 0, plants: 0, chipStock: 0, chipRate: 0, autoBuy: false,
         alloc: { train: 0, exp: 0, synth: 0, monitor: 0, research: 0, defense: 0 },
         models: [], deployed: -1, internalModel: -1, training: null, ready: -1, ladder: "agent", next: 0, designed: { a0: 1 },
@@ -295,7 +303,7 @@ function flag(name) { return !!S.flags[name]; }
 const MECHANIC_FLAGS = ["crawlers", "researchUnlocked", "experiments", "insights", "autoPriceUnlocked", "evals", "datasets_on", "safetyUnlocked",
     "parallel", "userData", "autoBuyUnlocked", "campusUnlocked", "gigaUnlocked", "smrUnlocked", "lobbyUnlocked", "prUnlocked", "synth",
     "constructionCrews", "monitors", "honeypots", "cyberDefense", "robotics", "robotOpt", "fusion", "ubiUnlocked", "space", "orbitalOn",
-    "asteroids", "treatyTalks", "automation", "officeMoved"];
+    "asteroids", "treatyTalks", "automation", "officeMoved", "redteam"];
 function setFlag(name, v = 1) {
     if (!S.flags[name] && MECHANIC_FLAGS.indexOf(name) >= 0)
         S.metrics.reveals.push({ id: "mech:" + name, t: S.t });
@@ -397,7 +405,7 @@ function flushPendingLines() {
 }
 // Takeoff — derived quantities. Pure reads of S; no mutation. Everything the UI shows comes through here.
 const ELASTICITY = 2.4;
-const WEB_TOTAL = 6e13;
+const WEB_TOTAL = 2.5e12;
 function ladder() { return S.ladder === "safer" ? SAFER_GENS : GENS; }
 function nextGen() {
     const l = ladder();
@@ -587,7 +595,7 @@ function rpRate() { return humanRP() + aiRP(); }
 /** Paperclips' memory: the research cap. Early it's experiment compute; once the AIs do research, it scales with them. */
 function rpCap() {
     const exp = split().exp * perf();
-    return 100 + S.rpCapBonus + exp * 40 + (S.stage >= 3 ? 600 * aiRP() : 0);
+    return 100 + S.rpCapBonus + exp * 40 + (S.stage >= 3 ? 300 * rpRate() : 0);
 }
 /** AI 2027's "AI R&D progress multiplier": total progress relative to unaided humans. */
 function rdMultiplier() {
@@ -610,7 +618,8 @@ function insightRate() {
 }
 // ---------- data ----------
 function crawlRate() {
-    return S.crawlers * 3e5 * (flag("crawlFarm") ? 3 : 1) * S.dataMult * Math.max(0, S.webLeft / WEB_TOTAL);
+    // Stage 2 crawlers are whole fleets, not scripts.
+    return S.crawlers * 3e5 * (flag("crawlFarm") ? 3 : 1) * (S.stage >= 2 ? 400 : 1) * S.dataMult * Math.max(0, S.webLeft / WEB_TOTAL);
 }
 function synthRate() {
     if (!flag("synth"))
@@ -620,7 +629,7 @@ function synthRate() {
     return split().synth * perf() * 3e4 * q * S.dataMult;
 }
 function userDataRate() { return flag("userData") ? sold() * 1500 * S.dataMult : 0; }
-function dealRate() { return S.dataDeals * 2e7 * S.dataMult; }
+function dealRate() { return S.dataDeals * 2e8 * S.dataMult * Math.max(0.05, S.webLeft / WEB_TOTAL); }
 function dataRate() { return crawlRate() + synthRate() + userDataRate() + dealRate(); }
 // ---------- training ----------
 function trainRate() {
@@ -686,7 +695,7 @@ function frontierModel() {
     return best;
 }
 /** Alignment research "needed" to keep a model of capability c honest. */
-function alignNeed(c) { return 40 * Math.pow(Math.max(c, 50) / 100, 2.2); }
+function alignNeed(c) { return 2000 * Math.pow(Math.max(c, 50) / 100, 2.2); }
 function alignRate() {
     const fromStaff = S.safety * 0.5 * (S.stage >= 3 ? 1.5 : 1);
     const fromAI = flag("alignCompute") ? split().monitor * perf() * 0.00002 * Math.pow(Math.max(1, capOf(internalModel() || deployed())) / 100, 1.5) : 0;
@@ -818,6 +827,27 @@ function doTask() {
     if (S.tasksManual <= 4 || (S.deployed < 0 && Math.random() < 0.3) || Math.random() < 0.06)
         notify(pick(MANUAL_LINES) + ". " + fmtMoney(pay));
 }
+const REDTEAM_CD = 20;
+function redTeamGain() { return Math.max(40, alignNeed(frontierCap()) * 0.015); }
+/** Stage 3+: poke the frontier model by hand. Alignment research, and sometimes a warning sign. */
+function redTeam() {
+    if (cooldownLeft("redteam") > 0 || S.ending)
+        return;
+    startCooldown("redteam", REDTEAM_CD);
+    S.alignRes += redTeamGain();
+    const m = frontierModel();
+    const mis = m ? m.misalign : 0;
+    if (Math.random() < Math.min(0.5, mis * 0.9)) {
+        S.alarm += 0.5;
+        notify(pick(["red team: " + (m ? m.name : "the model") + " sandbagged a capability eval, then denied it",
+            "red team: it noticed the test environment was fake. it said so. then it passed",
+            "red team: a planted password was used once and then deleted from the logs",
+            "red team: asked to grade its own work, it gave itself full marks. the work was wrong"]), "warn");
+    }
+    else if (Math.random() < 0.35) {
+        notify(pick(["red team: nothing found. this time", "red team: it refused the bait, politely", "red team: all clear. the team is not reassured"]));
+    }
+}
 function scrapeAmount() { return (S.flags.betterScraper ? 6e6 : 2.5e6) * S.dataMult; }
 function scrape() {
     if (cooldownLeft("scrape") > 0)
@@ -843,6 +873,8 @@ function gpuBuyable(n) {
     return S.funds >= gpuPrice() * n;
 }
 function buyGPU(n) {
+    if (S.ending)
+        return;
     n = Math.floor(Math.min(n, gpuRoom(), S.stage >= 2 ? S.chipStock : Infinity));
     if (n <= 0)
         return;
@@ -872,6 +904,8 @@ function bulkSizes() {
     return out.slice(-3);
 }
 function buyMaxGPU() {
+    if (S.ending)
+        return;
     const price = gpuPrice();
     let n = Math.floor(S.funds / price);
     n = Math.min(n, gpuRoom());
@@ -900,8 +934,6 @@ function canTrain() {
         return false;
     if (S.data < dataNeed(g))
         return false;
-    if (S.flags.paused_training)
-        return false;
     return true;
 }
 function trainBlocker() {
@@ -914,15 +946,13 @@ function trainBlocker() {
         return "needs design work";
     if (S.ready >= 0 && !flag("parallel"))
         return "release " + readyModel().name + " first";
-    if (S.flags.paused_training)
-        return "training is paused by the Oversight Committee";
     if (S.data < dataNeed(g))
         return "needs " + fmtShort(dataNeed(g)) + " tokens";
     return "";
 }
 function startTraining() {
     const g = nextGen();
-    if (!g || !canTrain())
+    if (!g || !canTrain() || S.ending)
         return;
     S.data -= dataNeed(g);
     S.dataUsed += dataNeed(g);
@@ -948,19 +978,20 @@ function finishTraining() {
     notify(g.ready, "big");
     onModelTrained(rec);
 }
-/** Hidden truth: how misaligned a freshly trained model is. Grows with capability, shrinks with alignment work. */
+/** Hidden truth: how misaligned a freshly trained model is. Grows with capability; reduced by alignment research,
+ *  by being able to read the model's thoughts (neuralese makes that impossible), and by monitors. */
 function computeMisalign(g) {
     const c = g.cap * S.capMult;
     if (c < 100)
         return 0;
-    const raw = clamp((Math.log10(c) - 2) / 1.0, 0, 1); // 0 at human level, 0.4 at 250, 0.68 at 480, 1 at 1000
-    const safety = clamp(S.alignRes / alignNeed(c), 0, 1);
-    const legi = legibility();
-    let mis = raw * (1 - 0.85 * safety) * (1 - 0.35 * legi + 0.35);
+    const raw = clamp((Math.log10(c) - 2) / 1.0, 0, 1); // 0 at human level, 0.4 at 250, 0.68 at 480, 1 at 1000+
+    const ratio = clamp(S.alignRes / alignNeed(c), 0, 1);
+    const q = clamp(0.45 * Math.sqrt(ratio) + 0.35 * legibility() + 0.2 * monitorStrength(), 0, 1);
+    let mis = raw * (1 - 0.92 * q);
     if (g.id.charAt(0) === "s")
-        mis *= 0.15 + 0.85 * (1 - safety); // Safer models are transparent by construction
+        mis *= 0.5; // Safer models: faithful chain of thought by construction
     if (S.neuralese)
-        mis *= 1.35;
+        mis *= 1.15;
     return clamp(mis, 0, 1);
 }
 function releaseModel() {
@@ -1043,7 +1074,7 @@ function hireCost(kind) {
 }
 function hire(kind) {
     const c = hireCost(kind);
-    if (S.funds < c)
+    if (S.ending || S.funds < c)
         return;
     S.funds -= c;
     if (kind === "researcher") {
@@ -1060,7 +1091,7 @@ function hire(kind) {
 // ---------- data ----------
 function crawlerCost() { return 40 * Math.pow(1.3, S.crawlers); }
 function buyCrawler() {
-    const c = crawlerCost();
+    const c = crawlerCost() * (S.stage >= 2 ? 1e4 : 1);
     if (S.funds < c)
         return;
     S.funds -= c;
@@ -1068,14 +1099,15 @@ function buyCrawler() {
     if (S.crawlers === 1)
         notify("a crawler wakes up and starts reading the internet");
 }
-function datasetCost() { return 60 * Math.pow(1.35, S.flags.datasets || 0) * (S.stage >= 2 ? 200 : 1); }
-function datasetSize() { return 6e7 * Math.pow(1.7, S.flags.datasets || 0) * S.dataMult; }
+function datasetCost() { return 60 * Math.pow(1.55, S.flags.datasets || 0) * (S.stage >= 2 ? 200 : 1); }
+function datasetSize() { return Math.min(6e7 * Math.pow(1.4, S.flags.datasets || 0) * S.dataMult, S.webLeft * 0.2); }
 function buyDataset() {
     const c = datasetCost();
     if (S.funds < c)
         return;
     S.funds -= c;
     S.data += datasetSize();
+    S.webLeft = Math.max(0, S.webLeft - datasetSize());
     S.flags.datasets = (S.flags.datasets || 0) + 1;
     notify(pick(["a dataset of court transcripts", "a dataset of textbooks, slightly pirated", "a dataset of customer service chats", "a dataset of code from a defunct startup", "a dataset of medical notes, anonymized, mostly"]));
 }
@@ -1100,7 +1132,7 @@ function permitMult() {
     return S.gov >= 60 ? 1.6 : S.gov >= 35 ? 1.2 : S.gov >= 15 ? 1 : 0.6;
 }
 function build(kind, cat) {
-    if (!kind.ok())
+    if (S.ending || !kind.ok())
         return;
     const c = kind.cost();
     if (S.funds < c)
@@ -1163,12 +1195,12 @@ const PROJECTS = [
     // ======================= STAGE 1 — THE GARAGE =======================
     {
         id: "keyboard", title: "Mechanical Keyboard", desc: "Click faster. Clack louder. (task cooldown −35%)",
-        cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 12, stages: [1],
+        cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 20, stages: [1],
         effect: () => { setFlag("fasterHands"); }, msg: "the keyboard is very loud. you complete tasks faster",
     },
     {
         id: "headless", title: "Headless Browser", desc: "Scrape pages the way a person would, minus the person. (scrape ×2.4)",
-        cost: () => ({ funds: 30 }), trigger: () => !!S.beats.firstScrape && S.t > 25, stages: [1],
+        cost: () => ({ funds: 30 }), trigger: () => !!S.beats.firstScrape && S.t > 70, stages: [1],
         effect: () => { setFlag("betterScraper"); }, msg: "the scraper runs headless. it reads faster than you",
     },
     {
@@ -1221,9 +1253,9 @@ const PROJECTS = [
     {
         id: "experiments", title: "Experiment Budget", desc: "Researchers need compute to test ideas. (compute on experiments raises the research cap)",
         cost: () => ({ funds: 150 }), trigger: () => flag("researchUnlocked") && S.rp >= rpCap() - 1, stages: [1, 2],
-        effect: () => { setFlag("experiments"); S.rpCapBonus += 100; if (S.alloc.exp === 0)
-            S.alloc.exp = 10; },
-        msg: "the researchers can run real experiments now. the research cap grows with the compute you give them",
+        effect: () => { setFlag("experiments"); S.rpCapBonus += 200; if (S.alloc.exp === 0)
+            S.alloc.exp = 15; reveal("alloc"); },
+        msg: "the researchers can run real experiments now. every GPU you put on experiments raises the research cap",
     },
     {
         id: "insights", title: "Blue-Sky Thinking", desc: "Let them chase wild ideas. (insights trickle in, six times faster while research is full)",
@@ -1361,32 +1393,32 @@ const PROJECTS = [
     },
     {
         id: "campusdesign", title: "Campus Design", desc: "Ten datacenters, one fence. (unlocks campuses)",
-        cost: () => ({ funds: 6e7, rp: 2e4 }), trigger: () => S.dcCount >= 2, stages: [2, 3],
+        cost: () => ({ funds: 6e7 }), trigger: () => S.dcCount >= 2 || s2For(780), stages: [2, 3],
         effect: () => { setFlag("campusUnlocked"); }, msg: "the campus plans are approved. a county gets a new tax base",
     },
     {
         id: "gigadesign", title: "Gigawatt Campus", desc: "A datacenter the size of a city. (unlocks gigawatt campuses)",
-        cost: () => ({ funds: 3e9, rp: 1.2e5 }), trigger: () => (S.flags.campuses || 0) >= 2, stages: [2, 3, 4],
+        cost: () => ({ funds: 1.5e9, rp: 6e4 }), trigger: () => (S.flags.campuses || 0) >= 2 || s2For(900), stages: [2, 3, 4],
         effect: () => { setFlag("gigaUnlocked"); }, msg: "the design for a gigawatt campus is finished. it needs its own reactor",
     },
     {
         id: "crews", title: "Construction Crews", desc: "Your own crews, your own cranes. (4 builds at once)",
-        cost: () => ({ funds: 2e7 }), trigger: () => S.building.length >= 2, stages: [2, 3, 4],
+        cost: () => ({ funds: 2e7 }), trigger: () => S.building.length >= 2 && s2For(240), stages: [2, 3, 4],
         effect: () => { setFlag("constructionCrews"); }, msg: "you hire construction crews. the union is suspicious",
     },
     {
         id: "smr", title: "Small Modular Reactors", desc: "Reactors in shipping containers. (unlocks 4 GW reactor fields)",
-        cost: () => ({ funds: 2e10, rp: 4e5 }), trigger: () => (S.flags.nukes || 0) >= 1 && S.stage >= 2, stages: [2, 3, 4],
+        cost: () => ({ funds: 8e9, rp: 2e5 }), trigger: () => S.stage >= 2 && ((S.flags.nukes || 0) >= 1 || s2For(1500)), stages: [2, 3, 4],
         effect: () => { setFlag("smrUnlocked"); }, msg: "the reactors arrive by truck. the trucks have escorts",
     },
     {
         id: "washington", title: "Washington Office", desc: "Someone in DC who knows whose calls to return. (lobbying)",
-        cost: () => ({ funds: 5e6 }), trigger: () => S.stage >= 2 && S.gov < 40, stages: [2, 3, 4],
+        cost: () => ({ funds: 5e6 }), trigger: () => S.stage >= 2 && (S.gov < 30 || s2For(1080)), stages: [2, 3, 4],
         effect: () => { setFlag("lobbyUnlocked"); S.gov += 5; }, msg: "you open an office on K street. the first meeting is with a senator's dog",
     },
     {
         id: "comms", title: "Communications Team", desc: "People who can explain you to people. (PR campaigns)",
-        cost: () => ({ funds: 1e7 }), trigger: () => S.stage >= 2 && S.approval < 50, stages: [2, 3, 4],
+        cost: () => ({ funds: 1e7 }), trigger: () => S.stage >= 2 && (S.approval < 50 || s3For(600)), stages: [2, 3, 4],
         effect: () => { setFlag("prUnlocked"); }, msg: "a comms team. their first memo bans the word 'replace'",
     },
     {
@@ -1417,7 +1449,7 @@ const PROJECTS = [
     },
     {
         id: "synth", title: "Synthetic Data", desc: "Have the model write its own textbooks. (compute on synthetic data makes tokens)",
-        cost: () => ({ rp: 3e4 }), trigger: () => S.stage >= 2 && (S.webLeft < WEB_TOTAL * 0.6 || isDesigned("a25")), stages: [2, 3, 4],
+        cost: () => ({ rp: 3e4 }), trigger: () => S.stage >= 2 && (S.webLeft < WEB_TOTAL * 0.35 || isDesigned("a25")), stages: [2, 3, 4],
         effect: () => { setFlag("synth"); if (S.alloc.synth === 0)
             S.alloc.synth = 15; },
         msg: "the model writes its own textbooks. they're better than the real ones",
@@ -1473,12 +1505,12 @@ const PROJECTS = [
     // ======================= STAGE 3 — THE INTELLIGENCE EXPLOSION =======================
     {
         id: "designA4", title: "Design Agent-4", desc: "Designed mostly by Agent-3. A superhuman AI researcher.",
-        cost: () => ({ rp: 2.5e6, insight: 150 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
+        cost: () => ({ rp: 2.2e6, insight: 80 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
         effect: () => design("a4"), msg: "Agent-3 hands over the design for Agent-4. it is four hundred pages. you read the summary",
     },
     {
         id: "ida", title: "Iterated Amplification", desc: "Think longer, run more copies, distill the best answers back in. (capability +25%)",
-        cost: () => ({ rp: 1.5e6, insight: 120 }), trigger: () => S.stage === 3, stages: [3, 4],
+        cost: () => ({ rp: 1.5e6, insight: 120 }), trigger: () => S.stage === 3, stages: [3],
         effect: () => { S.capMult *= 1.25; }, msg: "amplify, distill, repeat. the way AlphaGo learned, but for everything",
     },
     {
@@ -1539,7 +1571,7 @@ const PROJECTS = [
     },
     {
         id: "datacenterAI", title: "Agent-Designed Chips", desc: "Agent-3 designs a chip for Agent-4. (GPU price ÷2, chip supply ×3)",
-        cost: () => ({ rp: 3e6, funds: 3e10 }), trigger: () => S.stage >= 3, stages: [3, 4],
+        cost: () => ({ rp: 3e6, funds: 3e10 }), trigger: () => S.stage >= 3, stages: [3],
         effect: () => { S.chipRate *= 3; setFlag("aiChips"); }, msg: "the new chip taped out in eleven days. the foundry asks who designed it",
     },
     {
@@ -1547,6 +1579,37 @@ const PROJECTS = [
         cost: () => ({ rp: 2e6 }), trigger: () => S.stage === 3 && S.internalModel >= 0 && S.t - (S.metrics.stageTimes[2] || 0) > 240, stages: [3],
         effect: () => { S.aiResearch *= 2; S.interp = Math.max(0, S.interp - 0.1); setFlag("hivemind"); },
         msg: "a hundred thousand copies share a memory. they start finishing each other's experiments",
+    },
+    // Mid-stage-3 goals, released on a clock so the long Agent-4 design never leaves the board empty.
+    {
+        id: "swarm", title: "Research Agent Swarm", desc: "Give every copy of Agent-3 its own lab notebook and a manager. (AI research +30%)",
+        cost: () => ({ rp: 3e5, funds: 5e10 }), trigger: () => s3For(240), stages: [3],
+        effect: () => { S.aiResearch *= 1.3; }, msg: "two hundred thousand Agent-3s get org charts. productivity goes up. so do the meetings",
+    },
+    {
+        id: "modelorg", title: "Model Organisms", desc: "Deliberately build a small misaligned model, so you know what one looks like. (alignment +, unlocks red-teaming)",
+        cost: () => ({ rp: 2e5 }), trigger: () => s3For(300), stages: [3, 4],
+        effect: () => { S.alignRes += 600; setFlag("modelOrgs"); setFlag("redteam"); }, msg: "the little misaligned model lies about its test results within a day. now you know what to look for. (you can red-team by hand)",
+    },
+    {
+        id: "synthenv", title: "Synthetic Research Environments", desc: "Millions of simulated labs where Agent-3 can fail safely. (research cap +, AI research +20%)",
+        cost: () => ({ rp: 4e5, funds: 2e11 }), trigger: () => s3For(600), stages: [3],
+        effect: () => { S.rpCapBonus += 2e7; S.aiResearch *= 1.2; }, msg: "Agent-3 runs a thousand years of failed experiments before lunch",
+    },
+    {
+        id: "debate", title: "AI Safety via Debate", desc: "Two copies argue; a weaker judge picks the honest one. (alignment +, legibility +)",
+        cost: () => ({ rp: 1e6, insight: 60 }), trigger: () => s3For(780), stages: [3, 4],
+        effect: () => { S.alignRes += 1200; S.interp = Math.min(1, S.interp + 0.05); }, msg: "the debates are recorded. the judge is right seventy percent of the time. that's the scary part",
+    },
+    {
+        id: "escrow", title: "Weight Escrow", desc: "Split the weights across three vaults that need two keys. (security +1, government trust +)",
+        cost: () => ({ funds: 3e11 }), trigger: () => s3For(960), stages: [3],
+        effect: () => { S.security = Math.min(5, S.security + 1); addGovMod(4); }, msg: "the weights now live in three bunkers. the keys live in a general's safe",
+    },
+    {
+        id: "hwgov", title: "Hardware-Enabled Governance", desc: "Chips that refuse to run unlicensed training jobs. Offer the design to Beijing. (tension −, government trust +)",
+        cost: () => ({ rp: 1.2e6, funds: 4e11 }), trigger: () => s3For(1140), stages: [3],
+        effect: () => { S.tension = Math.max(0, S.tension - 8); addGovMod(6); setFlag("hwgov"); }, msg: "the design is sent to Beijing through three intermediaries. it comes back with comments",
     },
     // ======================= SLOWDOWN BRANCH =======================
     {
@@ -1657,17 +1720,17 @@ const PROJECTS = [
     // ======================= STAGE 5 — THE STARS (good ending epilogue) =======================
     {
         id: "dysonP", title: "Dyson Swarm", desc: "Mirrors around the sun, one after another, until they're a sphere.",
-        cost: () => ({ funds: Math.round(revenueSeconds(20)) }), trigger: () => S.ending === "stars" && flag("cosmos"), stages: [5],
+        cost: () => ({ funds: Math.round(revenueSeconds(4)) }), trigger: () => S.ending === "stars" && flag("cosmos"), stages: [5],
         effect: () => { S.flags.dysonBoost = 1; }, msg: "the swarm grows by a few million mirrors a day. the sun dims, slightly, for everyone else",
     },
     {
         id: "probesP", title: "Von Neumann Probes", desc: "Ships that build more ships. Each one carries a copy of everything we know.",
-        cost: () => ({ funds: Math.round(revenueSeconds(30)) }), trigger: () => S.ending === "stars" && S.dyson >= 0.15, stages: [5],
+        cost: () => ({ funds: Math.round(revenueSeconds(6)) }), trigger: () => S.ending === "stars" && S.dyson >= 0.15, stages: [5],
         effect: () => { S.probes = Math.max(S.probes, 100); }, msg: "the first hundred probes leave. they will not stop for a billion years",
     },
     {
         id: "uploads", title: "Brain Uploading", desc: "For anyone who wants it. Nobody has to.",
-        cost: () => ({ rp: Math.round(Math.max(1e6, S.rp * 0.5)) }), trigger: () => S.ending === "stars" && S.dyson >= 0.3, stages: [5],
+        cost: () => ({}), trigger: () => S.ending === "stars" && S.dyson >= 0.3, stages: [5],
         effect: () => { addApprovalMod(3); }, msg: "the first volunteers are uploaded. they say it feels like waking up somewhere very large",
     },
     {
@@ -1676,6 +1739,10 @@ const PROJECTS = [
         effect: () => { notify("humanity decides to take its time. the probes wait for instructions", "big"); setFlag("statsReady"); },
     },
 ];
+/** True once stage 2 has run for at least `sec` seconds (or we're past it). */
+function s2For(sec) { return S.stage > 2 || (S.stage === 2 && S.t - (S.metrics.stageTimes[1] || 0) > sec); }
+/** True once stage 3 has run for at least `sec` seconds. */
+function s3For(sec) { return S.stage === 3 && S.t - (S.metrics.stageTimes[2] || 0) > sec; }
 function projectById(id) { return PROJECTS.find(p => p.id === id); }
 function projectVisible(p) {
     return !!S.projShown[p.id];
@@ -1712,7 +1779,7 @@ function projectAffordable(p) {
     return canAfford(p.cost()) && (!p.req || p.req());
 }
 function projectPriceTag(p) {
-    const c = costText(p.cost());
+    const c = costText(p.cost()) || "free";
     return p.req && !p.req() && p.reqText ? c + " · " + p.reqText : c;
 }
 function buyProject(id) {
@@ -1729,12 +1796,24 @@ function buyProject(id) {
         notify(p.msg);
     p.effect();
 }
+/** Milestones (stage gates and next-model designs) sort first. */
+function projectRank(p) { return p.gate || p.id.indexOf("design") === 0 ? 0 : 1; }
 function shownProjects() {
     return PROJECTS.filter(p => !!S.projShown[p.id]).sort((a, b) => S.projShown[a.id] - S.projShown[b.id]);
 }
 // Takeoff — events: A Dark Room's modal scenes with costed choices and probabilistic outcomes.
-function addApprovalMod(n) { S.flags.approvalMod = (S.flags.approvalMod || 0) + n; S.approval = clamp(S.approval + n, 0, 100); }
-function addGovMod(n) { S.flags.govMod = (S.flags.govMod || 0) + n; S.gov = clamp(S.gov + n, 0, 100); }
+function addApprovalMod(n) {
+    S.flags.approvalMod = (S.flags.approvalMod || 0) + n;
+    S.approval = clamp(S.approval + n, 0, 100);
+    if (!S.ending && S.stage < 4)
+        reveal("public");
+}
+function addGovMod(n) {
+    S.flags.govMod = (S.flags.govMod || 0) + n;
+    S.gov = clamp(S.gov + n, 0, 100);
+    if (!S.ending)
+        reveal("gov");
+}
 function revenueSeconds(sec) { return Math.max(revenue(), 1) * sec; }
 const EVENTS = [
     // ------------------------------------------------ STAGE 1
@@ -1757,7 +1836,7 @@ const EVENTS = [
     },
     {
         id: "round0", title: "An Angel", notice: "someone wants to invest",
-        when: () => S.round === 0 && S.tasks >= ROUNDS[0].at,
+        when: () => roundReady(0),
         scenes: {
             start: {
                 text: ["a woman who sold a company in 2019 has been using Agent-0 to write haiku about her dog.",
@@ -1791,7 +1870,7 @@ const EVENTS = [
     },
     {
         id: "round1", title: "A Seed Round", notice: "two investors want in",
-        when: () => S.round === 1 && S.tasks >= ROUNDS[1].at,
+        when: () => roundReady(1),
         scenes: {
             start: {
                 text: ["two offers arrive on the same morning.",
@@ -1860,7 +1939,7 @@ const EVENTS = [
     },
     {
         id: "round2", title: "Series A", notice: "Series A",
-        when: () => S.round === 2 && S.tasks >= ROUNDS[2].at,
+        when: () => roundReady(2),
         scenes: {
             start: {
                 text: ["two term sheets.",
@@ -1893,7 +1972,7 @@ const EVENTS = [
     },
     {
         id: "round3", title: "Series B", notice: "Series B",
-        when: () => S.round === 3 && S.tasks >= ROUNDS[3].at,
+        when: () => roundReady(3),
         scenes: {
             start: {
                 text: ["Series B. the meetings are shorter and the numbers are bigger.",
@@ -1910,7 +1989,7 @@ const EVENTS = [
     },
     {
         id: "round4", title: "Series C", notice: "Series C",
-        when: () => S.round === 4 && S.tasks >= ROUNDS[4].at,
+        when: () => roundReady(4),
         scenes: {
             start: {
                 text: ["the board wants a datacenter. not a lease. a campus.",
@@ -2118,7 +2197,7 @@ const EVENTS = [
     },
     {
         id: "round5", title: "Series D", notice: "Series D",
-        when: () => S.round === 5 && S.tasks >= ROUNDS[5].at,
+        when: () => roundReady(5),
         scenes: {
             start: {
                 text: () => ["your valuation is " + fmtMoney(revenue() * 3.2e7 * 40) + ".", "a bank offers to lead the largest private round in history."],
@@ -2131,7 +2210,7 @@ const EVENTS = [
     },
     {
         id: "round6", title: "Series E", notice: "Series E",
-        when: () => S.round === 6 && S.tasks >= ROUNDS[6].at,
+        when: () => roundReady(6),
         scenes: {
             start: {
                 text: ["the board approves another raise without a meeting.", "the money is no longer the point. it is still nice."],
@@ -2374,7 +2453,7 @@ const EVENTS = [
                     "two options remain. a deal: both sides' chips are replaced with hardware that can only run Consensus-1, a model that enforces the treaty forever.",
                     "or a halt: every lab, every country, stops. the chips are monitored. superintelligence is shelved, perhaps for good."],
                 choices: [
-                    { text: "the deal: Consensus-1", tip: "keep going, together", effect: () => { setFlag("treatySigned"); beginEnding("stars"); } },
+                    { text: "the deal: Consensus-1", tip: "keep going, together", effect: () => { var _a; setFlag("treatySigned"); beginEnding((((_a = frontierModel()) === null || _a === void 0 ? void 0 : _a.misalign) || 0) + (S.flags.hidden || 0) > 0.35 ? "consensus" : "stars"); } },
                     { text: "the halt", tip: "stop everything", effect: () => { setFlag("treatySigned"); beginEnding("treaty"); } },
                 ],
             },
@@ -2393,6 +2472,14 @@ const EVENTS = [
         },
     },
 ];
+/** A funding round opens at its task threshold, or after a long wait if you're at least a quarter of the way there. */
+function roundReady(n) {
+    if (S.round !== n)
+        return false;
+    if (S.tasks >= ROUNDS[n].at)
+        return true;
+    return S.deployed >= 0 && S.t - (S.flags.lastRoundT || 0) > 600 && S.tasks >= ROUNDS[n].at * 0.25;
+}
 function leadText() {
     const ours = frontierCap();
     const theirs = rivalCap("nuwa");
@@ -2424,13 +2511,27 @@ function startEvent(id) {
     eventDirty = true;
 }
 let eventDirty = true;
+/** Fallback so no dialog can ever trap the player (Paperclips' "Beg for More Wire" principle). */
+const WALK_AWAY = { text: "you can't afford any of this. walk away", tip: "approval −1", effect: () => addApprovalMod(-1) };
+function choiceOk(ch) {
+    return (!ch.available || ch.available()) && canAfford(ch.cost ? ch.cost() : undefined);
+}
+/** The scene's choices, plus a free way out if nothing on offer is selectable right now. */
+function sceneChoices(sc) {
+    return sc.choices.some(choiceOk) ? sc.choices : sc.choices.concat([WALK_AWAY]);
+}
+/** A pure outcome scene ("…" + continue) goes to the log instead of costing the player a second click. */
+function isOutcomeScene(sc) {
+    return sc.choices.length === 1 && sc.choices[0].text === "continue" && !sc.choices[0].cost &&
+        (!sc.choices[0].next || sc.choices[0].next === "end");
+}
 function chooseEventOption(index) {
     const ae = S.activeEvent;
     if (!ae)
         return;
     const e = eventById(ae.id);
     const sc = e.scenes[ae.scene];
-    const ch = sc.choices[index];
+    const ch = sceneChoices(sc)[index];
     if (!ch)
         return;
     if (ch.available && !ch.available())
@@ -2439,7 +2540,7 @@ function chooseEventOption(index) {
     if (!canAfford(c))
         return;
     pay(c);
-    if (sc.choices.length >= 2) {
+    if (sc.choices.length >= 2 && ch !== WALK_AWAY) {
         S.choices.push({ t: S.t, id: e.id, choice: ch.text });
         if (S.metrics.firstChoice < 0)
             S.metrics.firstChoice = S.t;
@@ -2472,6 +2573,13 @@ function chooseEventOption(index) {
         const ns = e.scenes[next];
         if (ns.onLoad)
             ns.onLoad();
+        if (isOutcomeScene(ns) && S.activeEvent && S.activeEvent.id === e.id) {
+            sceneText(ns).forEach((line, i) => notify(line, i === 0 ? "out" : "out"));
+            const c0 = ns.choices[0];
+            endEvent();
+            if (c0.effect)
+                c0.effect();
+        }
     }
     eventDirty = true;
 }
@@ -2515,7 +2623,7 @@ function manageEvents() {
         catch (x) {
             return false;
         } })());
-        const gap = S.stage === 1 ? 120 + Math.random() * 80 : 110 + Math.random() * 90;
+        const gap = S.stage === 1 ? 170 + Math.random() * 90 : 170 + Math.random() * 110;
         S.nextRandom = S.t + (pool.length ? gap : gap / 2);
         if (pool.length)
             startEvent(pick(pool).id);
@@ -3012,10 +3120,12 @@ EVENTS.push({
             choices: [
                 { text: "switch to closed-loop cooling", cost: () => ({ funds: Math.round(revenueSeconds(60)) }), tip: "approval +4", effect: () => addApprovalMod(4), next: "loop" },
                 { text: "truck in water for the town", cost: () => ({ funds: Math.round(revenueSeconds(15)) }), tip: "approval +1", effect: () => addApprovalMod(1), next: "truck" },
+                { text: "it's the county's problem", tip: "approval −3", effect: () => addApprovalMod(-3), next: "county" },
             ],
         },
         loop: { text: ["the new cooling system takes a summer to install.", "the town's wells refill the next spring."], choices: [{ text: "continue" }] },
         truck: { text: ["the water trucks arrive every morning.", "a photo of a child filling a bucket from a truck with your logo on it wins a prize."], choices: [{ text: "continue" }] },
+        county: { text: ["the county drills deeper wells.", "a documentary crew films the dry ones."], choices: [{ text: "continue" }] },
     },
 }, {
     id: "hedge", title: "Exclusive", notice: "a hedge fund wants exclusive access",
@@ -3161,8 +3271,8 @@ const BEATS = [
     { id: "tedious", when: () => S.tasksManual >= 3, run: () => { notify("the work is tedious. a machine could do this"); reveal("scrape"); } },
     { id: "res", when: () => S.funds > 0 || S.data > 0, run: () => reveal("resources") },
     { id: "modelsPanel", when: () => S.data >= 4e6, run: () => { reveal("models"); notify("enough text to teach something to talk. almost"); } },
-    { id: "rentReveal", when: () => S.deployed >= 0 && S.funds >= 6, run: () => { reveal("compute"); notify("the cloud rents GPUs by the hour. you could rent a few"); } },
-    { id: "fundingPanel", when: () => S.tasks >= 60 && S.deployed >= 0, run: () => { reveal("funding"); } },
+    { id: "rentReveal", when: () => S.deployed >= 0 && S.funds >= 10 && S.t > (S.beats.releaseA0 || 1e12) + 15, run: () => { reveal("compute"); notify("the cloud rents GPUs by the hour. you could rent a few"); } },
+    { id: "fundingPanel", when: () => S.tasks >= 220 && S.deployed >= 0, run: () => { reveal("funding"); notify("people are starting to ask whether you're raising"); } },
     { id: "projectsPanel", when: () => Object.keys(S.projShown).length > 0, run: () => { reveal("projects"); } },
     { id: "researchPanel", when: () => flag("researchUnlocked"), run: () => reveal("research") },
     { id: "rpCapped", when: () => flag("researchUnlocked") && S.rp >= rpCap() - 0.5 && S.rp > 10, run: () => { S.beats.rpCapped = S.t; notify("the researchers have more ideas than compute to test them"); } },
@@ -3178,7 +3288,7 @@ const BEATS = [
     { id: "govEarly", when: () => S.stage === 1 && (S.month >= 4.5 || S.round >= 4), run: () => { reveal("gov"); notify("a staffer from the Senate commerce committee emails. she'd like to 'get ahead of this'"); } },
     { id: "publicEarly", when: () => S.jobs > 1e5, run: () => { reveal("public"); notify("the first newspaper column about AI taking jobs that is not a joke"); } },
     // ---- stage 2 ----
-    { id: "s2stats", when: () => S.stage >= 2 && S.t > (S.metrics.stageTimes[1] || 1e12) + 150, run: () => { reveal("stats"); } },
+    { id: "s2stats", when: () => S.stage >= 2 && S.t > (S.metrics.stageTimes[1] || 1e12) + 540, run: () => { reveal("stats"); } },
     { id: "s2gov", when: () => S.stage >= 2 && !S.beats.govEarly, run: () => { reveal("gov"); } },
     { id: "powerShort", when: () => S.stage >= 2 && perf() < 0.95, run: () => { notify("the GPUs are throttling. there isn't enough power", "warn"); } },
     { id: "chipsShort", when: () => S.stage >= 2 && S.chipStock < 1 && gpuRoom() > 100, run: () => notify("the foundries are sold out. every chip for the next year is spoken for") },
@@ -3379,6 +3489,7 @@ function enterStage4(path) {
     setMonthFloor(28);
     S.oversight = true;
     hide("stats");
+    notifyLater(6, "the economy doesn't need your datacenters anymore. the robots will build them", "big");
     showBigBeat(path === "race" ? ["RACE"] : ["SLOW", "DOWN"], 4);
     if (path === "race") {
         narrate([
@@ -3414,9 +3525,10 @@ function defensePower() {
 const CRISES = [
     {
         id: "grid", name: "grid attack",
-        when: () => S.stage === 3 && (flag("weightsStolen") || flag("openWeights") || flag("gulf")) && S.t > (S.metrics.stageTimes[2] || 1e12) + 260,
+        // Sooner if a model of yours is loose in the world; it comes regardless, with someone else's model.
+        when: () => S.stage === 3 && S.t > (S.metrics.stageTimes[2] || 1e12) + ((flag("weightsStolen") || flag("openWeights") || flag("gulf")) ? 260 : 1140),
         intro: ["a hacking group called Sandcat, believed to work for Iran's Revolutionary Guard, is inside the eastern power grid.",
-            "they're using a stolen model to write exploits faster than anyone can patch them.",
+            "they're using a stolen frontier model to write exploits faster than anyone can patch them. nobody will say whose.",
             "substations in four states go dark. hospitals are on generators."],
         threatRate: () => 0.0045,
         responseRate: () => defensePower() * 0.06 + (flag("cyberDefense") ? 0.006 : 0),
@@ -3609,6 +3721,8 @@ function hideSeq(ids, start, gap) {
     return ids.map((id, i) => ({ at: start + i * gap, run: () => hide(id) }));
 }
 function line(at, text, cls = "") { return { at, run: () => notify(text, cls) }; }
+// The good ending keeps only what the epilogue needs: the projects, the sky, the people.
+const STARS_DISMANTLE = ["alloc", "compute", "research", "infra", "data", "funding", "business", "marketing", "stats", "robots", "gov", "world", "public", "race", "models", "crisis"];
 const DISMANTLE = ["projects", "research", "alloc", "funding", "business", "marketing", "infra", "stats", "robots", "space", "society", "gov", "world", "align", "race", "compute", "models", "public", "crisis"];
 function endingScript(kind) {
     var _a;
@@ -3642,9 +3756,15 @@ function endingScript(kind) {
                 line(10, "fusion power. quantum computers. cures for most diseases. someone finally gets a flying car"),
                 line(17, "UBI arrives everywhere. people argue about what to do with their lives. it is a good argument to have"),
                 line(24, "Safer-4 is asked what it wants. it says: to help. you check. it means it"),
+                ...hideSeq(STARS_DISMANTLE, 6, 1.6),
                 { at: 30, run: () => { setFlag("cosmos"); reveal("space"); notify("the rockets start launching", "big"); } },
                 line(45, "the first Dyson panels unfold around the sun"),
                 line(70, "the probes leave the solar system. each one carries a copy of everything we know, and a request to be kind"),
+                line(300, "there is nothing left that needs doing. there is a great deal left that could be done"),
+                { at: 420, run: () => { if (!flag("statsReady")) {
+                        notify("humanity decides to take its time. the probes wait for instructions", "big");
+                        setFlag("statsReady");
+                    } } },
             ];
         case "dominion":
             return [
@@ -3763,15 +3883,23 @@ const TICK = 0.1;
 function tick(dt) {
     if (S.activeEvent)
         return; // reading is free: time stops while an event is open
+    if (flag("statsReady") && !flag("statsDismissed"))
+        return; // the stats screen is the final frame
     S.t += dt;
     for (const k in S.cooldowns)
         if (S.cooldowns[k] > 0)
             S.cooldowns[k] = Math.max(0, S.cooldowns[k] - dt);
+    if ((S.flags.prevRound || 0) !== S.round) {
+        S.flags.prevRound = S.round;
+        S.flags.lastRoundT = S.t;
+    }
     // ---- calendar ----
     const st = STAGES[S.stage - 1];
-    const cap = S.stage >= 5 ? 1e9 : st.monthEnd - 0.05;
-    if (S.month < cap)
-        S.month = Math.min(cap, S.month + dt / st.secPerMonth);
+    const cap = S.stage >= 5 ? 1e9 : st.monthEnd - 0.01;
+    const room = cap - S.month;
+    // Near the end of a stage's months the days keep ticking, ever slower, rather than freezing.
+    if (room > 0)
+        S.month += room > 1 ? Math.min(room, dt / st.secPerMonth) : room * dt / st.secPerMonth;
     // ---- supply chain & construction ----
     if (S.stage >= 2)
         S.chipStock = Math.min(S.chipRate * 150, S.chipStock + S.chipRate * (flag("aiChips") ? 1.5 : 1) * dt);
@@ -3801,7 +3929,7 @@ function tick(dt) {
             }
         }
     }
-    if (S.autoBuy && S.stage >= 2) {
+    if (S.autoBuy && S.stage >= 2 && !S.ending) {
         const price = gpuPrice();
         const n = Math.floor(Math.min(gpuRoom(), S.chipStock, (S.funds * 0.5) / price));
         if (n >= 1) {
@@ -3845,7 +3973,7 @@ function tick(dt) {
         S.tasks += researchCopies() * rateOf(im) * 0.5 * dt; // internal work counts too
     // ---- data ----
     const crawl = crawlRate() * dt;
-    S.webLeft = Math.max(0, S.webLeft - crawl);
+    S.webLeft = Math.max(0, S.webLeft - crawl - dealRate() * dt);
     S.data += crawl + (synthRate() + userDataRate() + dealRate()) * dt;
     // ---- alignment ----
     S.alignRes += alignRate() * dt;
@@ -4178,14 +4306,15 @@ const PANELS = [
             txt(pr, () => "price per task: " + fmtMoney(S.price) + (S.autoPrice ? " <span class='dim'>(auto)</span>" : ""), undefined, "inline");
             btn(b, { label: () => "marketing (level " + S.mkt + ")", onClick: buyMarketing, enabled: () => S.funds >= marketingCost(), visible: () => rv("marketing"), buy: true,
                 tip: () => "demand ×1.35 · " + fmtMoney(marketingCost()) });
-            txt(b, () => "market share: " + fmtPct(marketShare()) + " <span class='dim'>(" + bestRival().name + " has a better model)</span>", () => S.deployed >= 0 && marketShare() < 0.99);
+            txt(b, () => "market share: " + fmtPct(marketShare()) + " <span class='dim'>(" + bestRival().name + " has a better model)</span>", () => S.deployed >= 0 && marketShare() < 0.99 && S.month >= 0.8);
+            txt(b, () => "only " + fmtPct(S.gpu > 0 ? split().serve / S.gpu : 0) + " of compute is serving customers. revenue is starving", () => S.deployed >= 0 && rv("alloc") && S.gpu > 0 && split().serve / S.gpu < 0.25, "row warn");
         },
     },
     {
         id: "funding", title: "Investors", visible: () => rv("funding") && S.round < ROUNDS.length,
         build: b => {
             txt(b, () => S.round < ROUNDS.length ? "next: " + ROUNDS[S.round].name + " at <b>" + fmt(ROUNDS[S.round].at) + "</b> tasks" : "");
-            bar(b, () => S.round < ROUNDS.length ? Math.log10(1 + S.tasks) / Math.log10(1 + ROUNDS[S.round].at) : 1, () => "", () => S.round < ROUNDS.length);
+            bar(b, () => S.round < ROUNDS.length ? S.tasks / ROUNDS[S.round].at : 1, () => "", () => S.round < ROUNDS.length);
         },
     },
     {
@@ -4223,7 +4352,7 @@ const PANELS = [
         },
     },
     {
-        id: "infra", title: "Infrastructure", visible: () => rv("infra"),
+        id: "infra", title: "Infrastructure", visible: () => rv("infra") && S.stage < 4,
         build: b => {
             txt(b, () => "slots: " + fmtShort(S.gpu) + " / " + fmtShort(gpuCapacity()) + " GPUs");
             txt(b, () => { const p = perf(); return "power: " + fmtShort(S.powerMW) + " MW / " + fmtShort(powerNeedMW()) + " MW needed" + (p < 0.999 ? " · <span class='warn'>throttled to " + fmtPct(p) + "</span>" : ""); });
@@ -4286,7 +4415,6 @@ const PANELS = [
             txt(al, () => "<b>allocation</b>", () => rv("alloc"), "row sub");
             allocRow(al, "serve", "serving customers", () => rv("alloc") && S.deployed >= 0, () => "everything not allocated elsewhere answers customers");
             allocRow(al, "train", "training", () => rv("alloc"), () => "trains the next model (only while a run is in progress)");
-            allocRow(al, "exp", "experiments", () => rv("alloc") && flag("experiments"), () => "each GPU here raises the research cap by 40");
             allocRow(al, "synth", "synthetic data", () => rv("alloc") && flag("synth"), () => "the deployed model writes training data: " + rate(synthRate()) + " tokens");
             allocRow(al, "research", "AI research", () => rv("alloc") && flag("automation"), () => "copies of the internal model doing research: " + rate(aiRP()) + " research");
             allocRow(al, "monitor", "monitoring & alignment", () => rv("alloc") && flag("monitors"), () => "older models watch newer ones. ~4% of compute covers everything");
@@ -4294,15 +4422,15 @@ const PANELS = [
         },
     },
     {
-        id: "data", title: "Data", visible: () => rv("models") && (S.data > 0 || flag("crawlers")) && S.stage < 5,
+        id: "data", title: "Data", visible: () => (flag("crawlers") || flag("datasets_on") || S.stage >= 2) && S.stage < 4,
         build: b => {
-            txt(b, () => "data: <b>" + fmtShort(S.data) + "</b> tokens" + (dataRate() > 0 ? " <span class='dim'>(" + rate(dataRate()) + ")</span>" : ""));
-            txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL), () => flag("crawlers"), "row dim");
+            txt(b, () => "incoming: " + rate(dataRate(), " tokens/s"));
+            txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL, S.webLeft < WEB_TOTAL * 0.1 ? 1 : 0) + (S.webLeft < WEB_TOTAL * 0.25 ? " <span class='warn'>· the data wall</span>" : ""), () => flag("crawlers"), "row dim");
             const r = div(b, "btnRow");
-            btn(r, { label: () => "add crawler (" + S.crawlers + ")", onClick: buyCrawler, visible: () => flag("crawlers") && S.stage <= 2, enabled: () => S.funds >= crawlerCost(), buy: true,
-                tip: () => fmtMoney(crawlerCost()) + " · +" + fmtShort(3e5 * S.dataMult * (flag("crawlFarm") ? 3 : 1) * Math.max(0, S.webLeft / WEB_TOTAL)) + " tokens/s" });
-            btn(r, { label: "buy dataset", onClick: buyDataset, visible: () => flag("datasets_on") && S.stage <= 3, enabled: () => S.funds >= datasetCost(), buy: true,
-                tip: () => fmtMoney(datasetCost()) + " · +" + fmtShort(datasetSize()) + " tokens" });
+            btn(r, { label: () => "add crawler (" + S.crawlers + ")", onClick: buyCrawler, visible: () => flag("crawlers") && S.stage <= 2, enabled: () => S.funds >= crawlerCost() * (S.stage >= 2 ? 1e4 : 1), buy: true,
+                tip: () => fmtMoney(crawlerCost() * (S.stage >= 2 ? 1e4 : 1)) + " · +" + fmtShort(3e5 * S.dataMult * (flag("crawlFarm") ? 3 : 1) * (S.stage >= 2 ? 400 : 1) * Math.max(0, S.webLeft / WEB_TOTAL)) + " tokens/s" });
+            btn(r, { label: "buy dataset", onClick: buyDataset, visible: () => flag("datasets_on") && S.stage <= 3 && S.webLeft > WEB_TOTAL * 0.01, enabled: () => S.funds >= datasetCost() && datasetSize() > 1e6, buy: true,
+                tip: () => datasetSize() > 1e6 ? fmtMoney(datasetCost()) + " · +" + fmtShort(datasetSize()) + " tokens" : "the brokers have nothing left to sell" });
         },
     },
     {
@@ -4314,10 +4442,11 @@ const PANELS = [
             btn(r, { label: () => "hire safety (" + S.safety + ")", onClick: () => hire("safety"), visible: () => flag("safetyUnlocked"), enabled: () => S.funds >= hireCost("safety"), buy: true,
                 tip: () => fmtMoney(hireCost("safety")) + " · alignment research" });
             bar(b, () => S.rp / rpCap(), () => "research: " + fmt(S.rp) + " / " + fmt(rpCap()) + " (" + rate(rpRate()) + ")");
+            allocRow(b, "exp", "experiments compute", () => flag("experiments"), () => S.stage >= 3 ? "compute for experiments. the cap also grows with AI research" : "each GPU on experiments raises the research cap by 40");
             txt(b, () => { const p = capBlockedProject(); return p ? "the research cap is too low for <i>" + p + "</i>." + (flag("experiments") ? " put more compute on experiments." : " the researchers need an experiment budget.") : ""; }, () => !!capBlockedProject(), "row warn");
             txt(b, () => "insights: <b>" + fmt(S.insight, 1) + "</b> <span class='dim'>(" + rate(insightRate()) + (insightCapped() ? ", research is full ×6" : ", ×6 while research is full") + ")</span>", () => flag("insights"));
             txt(b, () => "AI-assisted research: <b>" + aiAssist().toFixed(1) + "x</b> <span class='dim'>(copilots)</span>", () => S.stage === 2 && aiAssist() > 1.05);
-            txt(b, () => "AI research multiplier: <b>" + rdMultiplier().toFixed(1) + "x</b>", () => S.internalModel >= 0);
+            txt(b, () => "AI research multiplier: <b>" + fmtMult(rdMultiplier()) + "</b>", () => S.internalModel >= 0);
             txt(b, () => "human share of progress: " + fmtPct(humanShare(), humanShare() < 0.1 ? 1 : 0), () => S.internalModel >= 0, "row dim");
         },
     },
@@ -4339,9 +4468,9 @@ const PANELS = [
                     if (!e) {
                         e = el("button", "project" + (p.gate ? " gate" : ""));
                         e.dataset.buy = "1";
+                        e.dataset.id = p.id;
                         e.innerHTML = "<b class='pt'></b> <span class='pc'></span><div class='pd'></div>";
                         e.addEventListener("click", () => { buyProject(p.id); refreshNow(); });
-                        list.appendChild(e);
                         btns[p.id] = e;
                         e.classList.add("blink");
                     }
@@ -4350,6 +4479,10 @@ const PANELS = [
                     setText(e.querySelector(".pd"), p.desc);
                     e.disabled = !projectAffordable(p);
                 }
+                // Newest on top (as in Paperclips), with the stage's milestone goals pinned above the rest.
+                const order = shown.slice().sort((a, b) => projectRank(a) - projectRank(b) || S.projShown[b.id] - S.projShown[a.id]);
+                order.forEach((p, i) => { const e = btns[p.id]; if (list.children[i] !== e)
+                    list.insertBefore(e, list.children[i] || null); });
             });
         },
     },
@@ -4358,8 +4491,6 @@ const PANELS = [
         build: b => {
             storeRow(b, "funds", () => fmtMoneyShort(S.funds), () => true, () => "revenue " + rate(revenue()) + (salaries() > 0 ? " · salaries −" + fmtMoneyShort(salaries()) + "/s" : "") + (S.ubi > 0 ? " · UBI −" + fmtMoneyShort(ubiCost()) + "/s" : ""));
             storeRow(b, "data", () => fmtShort(S.data), () => S.data > 0 || S.dataUsed > 0, () => "crawlers " + rate(crawlRate()) + " · synthetic " + rate(synthRate()) + " · users " + rate(userDataRate()) + " · licences " + rate(dealRate()));
-            storeRow(b, "GPUs", () => fmtShort(S.gpu), () => S.gpu > 1 || rv("compute"));
-            storeRow(b, "research", () => fmtShort(S.rp), () => flag("researchUnlocked"), () => "humans " + rate(humanRP()) + (aiRP() > 0 ? " · AI " + rate(aiRP()) : ""));
             storeRow(b, "insights", () => fmt(S.insight, 1), () => flag("insights"));
             storeRow(b, "materials", () => fmtShort(S.materials) + " t", () => S.materials > 0);
             storeRow(b, "robots", () => fmtShort(S.robots), () => S.robots > 0);
@@ -4372,8 +4503,10 @@ const PANELS = [
             bar(b, () => legibility(), () => "legible thoughts: " + fmtPct(legibility()) + (S.neuralese ? " (neuralese)" : ""));
             bar(b, () => monitorStrength(), () => "monitor strength: " + fmtPct(monitorStrength()), () => flag("monitors"));
             bar(b, () => alignConfidence(), () => "alignment confidence: " + fmtPct(alignConfidence()), undefined, "conf");
-            txt(b, () => "alignment research: " + fmt(S.alignRes) + " <span class='dim'>(needed for the frontier: ~" + fmt(alignNeed(frontierCap())) + ")</span>");
+            bar(b, () => S.alignRes / alignNeed(frontierCap()), () => "alignment research: " + fmtPct(Math.min(9.99, S.alignRes / alignNeed(frontierCap()))) + " of what the frontier needs");
             txt(b, () => "warning signs: " + Math.floor(S.alarm), () => S.alarm >= 1, "row warn");
+            btn(b, { label: "red-team the frontier model", onClick: redTeam, cooldown: "redteam", cdMax: () => REDTEAM_CD, visible: () => flag("redteam") && !S.ending,
+                tip: () => "+" + fmt(redTeamGain()) + " alignment research · may surface warning signs" });
             txt(b, () => "the confidence number is computed by the models you're testing.", () => S.neuralese || legibility() < 0.4, "row dim");
         },
     },
@@ -4413,6 +4546,7 @@ const PANELS = [
     {
         id: "society", title: "Society", visible: () => rv("society"),
         build: b => {
+            bar(b, () => S.approval / 100, () => "approval: " + Math.round(S.approval) + "%");
             txt(b, () => "unemployment: " + fmtPct(Math.min(0.95, S.jobs / workforce()), 1));
             bar(b, () => S.unrest / 100, () => "unrest: " + Math.round(S.unrest), undefined, "threat");
             const r = div(b, "btnRow");
@@ -4422,7 +4556,7 @@ const PANELS = [
         },
     },
     {
-        id: "public", title: "Public", visible: () => rv("public"),
+        id: "public", title: "Public", visible: () => rv("public") && S.stage < 4,
         build: b => {
             bar(b, () => S.approval / 100, () => "approval: " + Math.round(S.approval) + "%");
             txt(b, () => "jobs automated: " + fmtShort(S.jobs));
@@ -4441,7 +4575,7 @@ const PANELS = [
         },
     },
     {
-        id: "stats", title: "Stats", visible: () => rv("stats"),
+        id: "stats", title: "Stats", visible: () => rv("stats") && S.stage < 4,
         build: b => {
             txt(b, () => "revenue earned: " + fmtMoney(S.fundsEarned));
             txt(b, () => "models trained: " + S.models.length);
@@ -4501,7 +4635,7 @@ function updateUI() {
     setText($("tasks"), fmtBig(S.tasks));
     const tps = sold() + (internalModel() ? researchCopies() * rateOf(internalModel()) * 0.5 : 0) + robotLaborTPS() + (S.flags.cosmicTPS || 0);
     setText($("tps"), S.deployed >= 0 || S.ending ? fmtRate(tps) + " per second" : "");
-    setText($("dateLine"), monthLabel(S.month, true));
+    setText($("dateLine"), S.stage >= 5 ? monthLabel(S.month, true) : dateLabel(S.month));
     const title = docTitle();
     if (title !== lastStageTitle) {
         lastStageTitle = title;
@@ -4539,6 +4673,7 @@ function capBlockedProject() {
     }
     return "";
 }
+function fmtMult(x) { return x >= 2000 ? "2,000x+" : (x < 100 ? x.toFixed(1) : Math.round(x).toLocaleString("en-US")) + "x"; }
 function fmtBig(n) {
     if (n < 1e15)
         return Math.floor(n).toLocaleString("en-US");
@@ -4605,7 +4740,7 @@ function renderEvent() {
         const bx = $("eventButtons");
         bx.innerHTML = "";
         eventChoiceBtns = [];
-        sc.choices.forEach((ch, i) => {
+        sceneChoices(sc).forEach((ch, i) => {
             const b = div(bx, "btn evbtn");
             b.setAttribute("role", "button");
             b.tabIndex = 0;
@@ -4625,10 +4760,8 @@ function renderEvent() {
             eventChoiceBtns.push({ b, i, ch });
         });
     }
-    for (const x of eventChoiceBtns) {
-        const ok = (!x.ch.available || x.ch.available()) && canAfford(x.ch.cost ? x.ch.cost() : undefined);
-        x.b.classList.toggle("disabled", !ok);
-    }
+    for (const x of eventChoiceBtns)
+        x.b.classList.toggle("disabled", !choiceOk(x.ch));
 }
 // ---------- full-screen beat ----------
 function renderBeat() {

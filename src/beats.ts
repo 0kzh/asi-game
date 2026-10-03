@@ -30,8 +30,8 @@ const BEATS: Beat[] = [
   { id: "tedious", when: () => S.tasksManual >= 3, run: () => { notify("the work is tedious. a machine could do this"); reveal("scrape"); } },
   { id: "res", when: () => S.funds > 0 || S.data > 0, run: () => reveal("resources") },
   { id: "modelsPanel", when: () => S.data >= 4e6, run: () => { reveal("models"); notify("enough text to teach something to talk. almost"); } },
-  { id: "rentReveal", when: () => S.deployed >= 0 && S.funds >= 6, run: () => { reveal("compute"); notify("the cloud rents GPUs by the hour. you could rent a few"); } },
-  { id: "fundingPanel", when: () => S.tasks >= 60 && S.deployed >= 0, run: () => { reveal("funding"); } },
+  { id: "rentReveal", when: () => S.deployed >= 0 && S.funds >= 10 && S.t > (S.beats.releaseA0 || 1e12) + 15, run: () => { reveal("compute"); notify("the cloud rents GPUs by the hour. you could rent a few"); } },
+  { id: "fundingPanel", when: () => S.tasks >= 220 && S.deployed >= 0, run: () => { reveal("funding"); notify("people are starting to ask whether you're raising"); } },
   { id: "projectsPanel", when: () => Object.keys(S.projShown).length > 0, run: () => { reveal("projects"); } },
   { id: "researchPanel", when: () => flag("researchUnlocked"), run: () => reveal("research") },
   { id: "rpCapped", when: () => flag("researchUnlocked") && S.rp >= rpCap() - 0.5 && S.rp > 10, run: () => { S.beats.rpCapped = S.t; notify("the researchers have more ideas than compute to test them"); } },
@@ -48,7 +48,7 @@ const BEATS: Beat[] = [
   { id: "publicEarly", when: () => S.jobs > 1e5, run: () => { reveal("public"); notify("the first newspaper column about AI taking jobs that is not a joke"); } },
 
   // ---- stage 2 ----
-  { id: "s2stats", when: () => S.stage >= 2 && S.t > (S.metrics.stageTimes[1] || 1e12) + 150, run: () => { reveal("stats"); } },
+  { id: "s2stats", when: () => S.stage >= 2 && S.t > (S.metrics.stageTimes[1] || 1e12) + 540, run: () => { reveal("stats"); } },
   { id: "s2gov", when: () => S.stage >= 2 && !S.beats.govEarly, run: () => { reveal("gov"); } },
   { id: "powerShort", when: () => S.stage >= 2 && perf() < 0.95, run: () => { notify("the GPUs are throttling. there isn't enough power", "warn"); } },
   { id: "chipsShort", when: () => S.stage >= 2 && S.chipStock < 1 && gpuRoom() > 100, run: () => notify("the foundries are sold out. every chip for the next year is spoken for") },
@@ -218,6 +218,7 @@ function enterStage4(path: string): void {
   setMonthFloor(28);
   S.oversight = true;
   hide("stats");
+  notifyLater(6, "the economy doesn't need your datacenters anymore. the robots will build them", "big");
   showBigBeat(path === "race" ? ["RACE"] : ["SLOW", "DOWN"], 4);
   if (path === "race") {
     narrate([

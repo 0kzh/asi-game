@@ -159,7 +159,7 @@ const SAVE_VERSION = 1;
 function newState(): State {
   return {
     v: SAVE_VERSION, t: 0, stage: 1, month: 0, paused: false,
-    tasks: 0, tasksManual: 0, funds: 0, fundsEarned: 0, data: 0, dataUsed: 0, webLeft: 6e13, crawlers: 0, dataDeals: 0,
+    tasks: 0, tasksManual: 0, funds: 0, fundsEarned: 0, data: 0, dataUsed: 0, webLeft: 2.5e12, crawlers: 0, dataDeals: 0,
     gpu: 1, tier: 0, dcCap: 0, dcCount: 0, building: [], powerMW: 0, plants: 0, chipStock: 0, chipRate: 0, autoBuy: false,
     alloc: { train: 0, exp: 0, synth: 0, monitor: 0, research: 0, defense: 0 },
     models: [], deployed: -1, internalModel: -1, training: null, ready: -1, ladder: "agent", next: 0, designed: { a0: 1 },
@@ -186,7 +186,7 @@ function flag(name: string): boolean { return !!S.flags[name]; }
 const MECHANIC_FLAGS = ["crawlers", "researchUnlocked", "experiments", "insights", "autoPriceUnlocked", "evals", "datasets_on", "safetyUnlocked",
   "parallel", "userData", "autoBuyUnlocked", "campusUnlocked", "gigaUnlocked", "smrUnlocked", "lobbyUnlocked", "prUnlocked", "synth",
   "constructionCrews", "monitors", "honeypots", "cyberDefense", "robotics", "robotOpt", "fusion", "ubiUnlocked", "space", "orbitalOn",
-  "asteroids", "treatyTalks", "automation", "officeMoved"];
+  "asteroids", "treatyTalks", "automation", "officeMoved", "redteam"];
 
 function setFlag(name: string, v = 1): void {
   if (!S.flags[name] && MECHANIC_FLAGS.indexOf(name) >= 0) S.metrics.reveals.push({ id: "mech:" + name, t: S.t });

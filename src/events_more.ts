@@ -524,10 +524,12 @@ EVENTS.push(
         choices: [
           { text: "switch to closed-loop cooling", cost: () => ({ funds: Math.round(revenueSeconds(60)) }), tip: "approval +4", effect: () => addApprovalMod(4), next: "loop" },
           { text: "truck in water for the town", cost: () => ({ funds: Math.round(revenueSeconds(15)) }), tip: "approval +1", effect: () => addApprovalMod(1), next: "truck" },
+          { text: "it's the county's problem", tip: "approval −3", effect: () => addApprovalMod(-3), next: "county" },
         ],
       },
       loop: { text: ["the new cooling system takes a summer to install.", "the town's wells refill the next spring."], choices: [{ text: "continue" }] },
       truck: { text: ["the water trucks arrive every morning.", "a photo of a child filling a bucket from a truck with your logo on it wins a prize."], choices: [{ text: "continue" }] },
+      county: { text: ["the county drills deeper wells.", "a documentary crew films the dry ones."], choices: [{ text: "continue" }] },
     },
   },
   {

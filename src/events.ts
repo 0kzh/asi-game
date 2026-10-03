@@ -28,8 +28,14 @@ interface GameEvent {
   scenes: Record<string, Scene>;
 }
 
-function addApprovalMod(n: number): void { S.flags.approvalMod = (S.flags.approvalMod || 0) + n; S.approval = clamp(S.approval + n, 0, 100); }
-function addGovMod(n: number): void { S.flags.govMod = (S.flags.govMod || 0) + n; S.gov = clamp(S.gov + n, 0, 100); }
+function addApprovalMod(n: number): void {
+  S.flags.approvalMod = (S.flags.approvalMod || 0) + n; S.approval = clamp(S.approval + n, 0, 100);
+  if (!S.ending && S.stage < 4) reveal("public");
+}
+function addGovMod(n: number): void {
+  S.flags.govMod = (S.flags.govMod || 0) + n; S.gov = clamp(S.gov + n, 0, 100);
+  if (!S.ending) reveal("gov");
+}
 function revenueSeconds(sec: number): number { return Math.max(revenue(), 1) * sec; }
 
 const EVENTS: GameEvent[] = [
@@ -53,7 +59,7 @@ const EVENTS: GameEvent[] = [
   },
   {
     id: "round0", title: "An Angel", notice: "someone wants to invest",
-    when: () => S.round === 0 && S.tasks >= ROUNDS[0].at,
+    when: () => roundReady(0),
     scenes: {
       start: {
         text: ["a woman who sold a company in 2019 has been using Agent-0 to write haiku about her dog.",
@@ -87,7 +93,7 @@ const EVENTS: GameEvent[] = [
   },
   {
     id: "round1", title: "A Seed Round", notice: "two investors want in",
-    when: () => S.round === 1 && S.tasks >= ROUNDS[1].at,
+    when: () => roundReady(1),
     scenes: {
       start: {
         text: ["two offers arrive on the same morning.",
@@ -156,7 +162,7 @@ const EVENTS: GameEvent[] = [
   },
   {
     id: "round2", title: "Series A", notice: "Series A",
-    when: () => S.round === 2 && S.tasks >= ROUNDS[2].at,
+    when: () => roundReady(2),
     scenes: {
       start: {
         text: ["two term sheets.",
@@ -189,7 +195,7 @@ const EVENTS: GameEvent[] = [
   },
   {
     id: "round3", title: "Series B", notice: "Series B",
-    when: () => S.round === 3 && S.tasks >= ROUNDS[3].at,
+    when: () => roundReady(3),
     scenes: {
       start: {
         text: ["Series B. the meetings are shorter and the numbers are bigger.",
@@ -206,7 +212,7 @@ const EVENTS: GameEvent[] = [
   },
   {
     id: "round4", title: "Series C", notice: "Series C",
-    when: () => S.round === 4 && S.tasks >= ROUNDS[4].at,
+    when: () => roundReady(4),
     scenes: {
       start: {
         text: ["the board wants a datacenter. not a lease. a campus.",
@@ -408,7 +414,7 @@ const EVENTS: GameEvent[] = [
   },
   {
     id: "round5", title: "Series D", notice: "Series D",
-    when: () => S.round === 5 && S.tasks >= ROUNDS[5].at,
+    when: () => roundReady(5),
     scenes: {
       start: {
         text: () => ["your valuation is " + fmtMoney(revenue() * 3.2e7 * 40) + ".", "a bank offers to lead the largest private round in history."],
@@ -421,7 +427,7 @@ const EVENTS: GameEvent[] = [
   },
   {
     id: "round6", title: "Series E", notice: "Series E",
-    when: () => S.round === 6 && S.tasks >= ROUNDS[6].at,
+    when: () => roundReady(6),
     scenes: {
       start: {
         text: ["the board approves another raise without a meeting.", "the money is no longer the point. it is still nice."],
@@ -665,7 +671,7 @@ const EVENTS: GameEvent[] = [
           "two options remain. a deal: both sides' chips are replaced with hardware that can only run Consensus-1, a model that enforces the treaty forever.",
           "or a halt: every lab, every country, stops. the chips are monitored. superintelligence is shelved, perhaps for good."],
         choices: [
-          { text: "the deal: Consensus-1", tip: "keep going, together", effect: () => { setFlag("treatySigned"); beginEnding("stars"); } },
+          { text: "the deal: Consensus-1", tip: "keep going, together", effect: () => { setFlag("treatySigned"); beginEnding((frontierModel()?.misalign || 0) + (S.flags.hidden || 0) > 0.35 ? "consensus" : "stars"); } },
           { text: "the halt", tip: "stop everything", effect: () => { setFlag("treatySigned"); beginEnding("treaty"); } },
         ],
       },
@@ -684,6 +690,13 @@ const EVENTS: GameEvent[] = [
     },
   },
 ];
+
+/** A funding round opens at its task threshold, or after a long wait if you're at least a quarter of the way there. */
+function roundReady(n: number): boolean {
+  if (S.round !== n) return false;
+  if (S.tasks >= ROUNDS[n].at) return true;
+  return S.deployed >= 0 && S.t - (S.flags.lastRoundT || 0) > 600 && S.tasks >= ROUNDS[n].at * 0.25;
+}
 
 function leadText(): string {
   const ours = frontierCap();
@@ -716,18 +729,36 @@ function startEvent(id: string): void {
 
 let eventDirty = true;
 
+/** Fallback so no dialog can ever trap the player (Paperclips' "Beg for More Wire" principle). */
+const WALK_AWAY: Choice = { text: "you can't afford any of this. walk away", tip: "approval −1", effect: () => addApprovalMod(-1) };
+
+function choiceOk(ch: Choice): boolean {
+  return (!ch.available || ch.available()) && canAfford(ch.cost ? ch.cost() : undefined);
+}
+
+/** The scene's choices, plus a free way out if nothing on offer is selectable right now. */
+function sceneChoices(sc: Scene): Choice[] {
+  return sc.choices.some(choiceOk) ? sc.choices : sc.choices.concat([WALK_AWAY]);
+}
+
+/** A pure outcome scene ("…" + continue) goes to the log instead of costing the player a second click. */
+function isOutcomeScene(sc: Scene): boolean {
+  return sc.choices.length === 1 && sc.choices[0].text === "continue" && !sc.choices[0].cost &&
+    (!sc.choices[0].next || sc.choices[0].next === "end");
+}
+
 function chooseEventOption(index: number): void {
   const ae = S.activeEvent;
   if (!ae) return;
   const e = eventById(ae.id)!;
   const sc = e.scenes[ae.scene];
-  const ch = sc.choices[index];
+  const ch = sceneChoices(sc)[index];
   if (!ch) return;
   if (ch.available && !ch.available()) return;
   const c = ch.cost ? ch.cost() : undefined;
   if (!canAfford(c)) return;
   pay(c);
-  if (sc.choices.length >= 2) {
+  if (sc.choices.length >= 2 && ch !== WALK_AWAY) {
     S.choices.push({ t: S.t, id: e.id, choice: ch.text });
     if (S.metrics.firstChoice < 0) S.metrics.firstChoice = S.t;
   }
@@ -747,6 +778,12 @@ function chooseEventOption(index: number): void {
     S.activeEvent.scene = next;
     const ns = e.scenes[next];
     if (ns.onLoad) ns.onLoad();
+    if (isOutcomeScene(ns) && S.activeEvent && S.activeEvent.id === e.id) {
+      sceneText(ns).forEach((line, i) => notify(line, i === 0 ? "out" : "out"));
+      const c0 = ns.choices[0];
+      endEvent();
+      if (c0.effect) c0.effect();
+    }
   }
   eventDirty = true;
 }
@@ -774,7 +811,7 @@ function manageEvents(): void {
   }
   if (S.t >= S.nextRandom) {
     const pool = EVENTS.filter(e => e.random && (!S.eventsDone[e.id] || e.repeat) && (() => { try { return e.random!(); } catch (x) { return false; } })());
-    const gap = S.stage === 1 ? 120 + Math.random() * 80 : 110 + Math.random() * 90;
+    const gap = S.stage === 1 ? 170 + Math.random() * 90 : 170 + Math.random() * 110;
     S.nextRandom = S.t + (pool.length ? gap : gap / 2);
     if (pool.length) startEvent(pick(pool).id);
   }

@@ -4,14 +4,19 @@ const TICK = 0.1;
 
 function tick(dt: number): void {
   if (S.activeEvent) return; // reading is free: time stops while an event is open
+  if (flag("statsReady") && !flag("statsDismissed")) return; // the stats screen is the final frame
   S.t += dt;
 
   for (const k in S.cooldowns) if (S.cooldowns[k] > 0) S.cooldowns[k] = Math.max(0, S.cooldowns[k] - dt);
 
+  if ((S.flags.prevRound || 0) !== S.round) { S.flags.prevRound = S.round; S.flags.lastRoundT = S.t; }
+
   // ---- calendar ----
   const st = STAGES[S.stage - 1];
-  const cap = S.stage >= 5 ? 1e9 : st.monthEnd - 0.05;
-  if (S.month < cap) S.month = Math.min(cap, S.month + dt / st.secPerMonth);
+  const cap = S.stage >= 5 ? 1e9 : st.monthEnd - 0.01;
+  const room = cap - S.month;
+  // Near the end of a stage's months the days keep ticking, ever slower, rather than freezing.
+  if (room > 0) S.month += room > 1 ? Math.min(room, dt / st.secPerMonth) : room * dt / st.secPerMonth;
 
   // ---- supply chain & construction ----
   if (S.stage >= 2) S.chipStock = Math.min(S.chipRate * 150, S.chipStock + S.chipRate * (flag("aiChips") ? 1.5 : 1) * dt);
@@ -34,7 +39,7 @@ function tick(dt: number): void {
       }
     }
   }
-  if (S.autoBuy && S.stage >= 2) {
+  if (S.autoBuy && S.stage >= 2 && !S.ending) {
     const price = gpuPrice();
     const n = Math.floor(Math.min(gpuRoom(), S.chipStock, (S.funds * 0.5) / price));
     if (n >= 1) { S.funds -= n * price; S.gpu += n; S.chipStock -= n; }
@@ -72,7 +77,7 @@ function tick(dt: number): void {
 
   // ---- data ----
   const crawl = crawlRate() * dt;
-  S.webLeft = Math.max(0, S.webLeft - crawl);
+  S.webLeft = Math.max(0, S.webLeft - crawl - dealRate() * dt);
   S.data += crawl + (synthRate() + userDataRate() + dealRate()) * dt;
 
   // ---- alignment ----

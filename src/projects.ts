@@ -29,12 +29,12 @@ const PROJECTS: Project[] = [
   // ======================= STAGE 1 — THE GARAGE =======================
   {
     id: "keyboard", title: "Mechanical Keyboard", desc: "Click faster. Clack louder. (task cooldown −35%)",
-    cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 12, stages: [1],
+    cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 20, stages: [1],
     effect: () => { setFlag("fasterHands"); }, msg: "the keyboard is very loud. you complete tasks faster",
   },
   {
     id: "headless", title: "Headless Browser", desc: "Scrape pages the way a person would, minus the person. (scrape ×2.4)",
-    cost: () => ({ funds: 30 }), trigger: () => !!S.beats.firstScrape && S.t > 25, stages: [1],
+    cost: () => ({ funds: 30 }), trigger: () => !!S.beats.firstScrape && S.t > 70, stages: [1],
     effect: () => { setFlag("betterScraper"); }, msg: "the scraper runs headless. it reads faster than you",
   },
   {
@@ -87,8 +87,8 @@ const PROJECTS: Project[] = [
   {
     id: "experiments", title: "Experiment Budget", desc: "Researchers need compute to test ideas. (compute on experiments raises the research cap)",
     cost: () => ({ funds: 150 }), trigger: () => flag("researchUnlocked") && S.rp >= rpCap() - 1, stages: [1, 2],
-    effect: () => { setFlag("experiments"); S.rpCapBonus += 100; if (S.alloc.exp === 0) S.alloc.exp = 10; },
-    msg: "the researchers can run real experiments now. the research cap grows with the compute you give them",
+    effect: () => { setFlag("experiments"); S.rpCapBonus += 200; if (S.alloc.exp === 0) S.alloc.exp = 15; reveal("alloc"); },
+    msg: "the researchers can run real experiments now. every GPU you put on experiments raises the research cap",
   },
   {
     id: "insights", title: "Blue-Sky Thinking", desc: "Let them chase wild ideas. (insights trickle in, six times faster while research is full)",
@@ -227,32 +227,32 @@ const PROJECTS: Project[] = [
   },
   {
     id: "campusdesign", title: "Campus Design", desc: "Ten datacenters, one fence. (unlocks campuses)",
-    cost: () => ({ funds: 6e7, rp: 2e4 }), trigger: () => S.dcCount >= 2, stages: [2, 3],
+    cost: () => ({ funds: 6e7 }), trigger: () => S.dcCount >= 2 || s2For(780), stages: [2, 3],
     effect: () => { setFlag("campusUnlocked"); }, msg: "the campus plans are approved. a county gets a new tax base",
   },
   {
     id: "gigadesign", title: "Gigawatt Campus", desc: "A datacenter the size of a city. (unlocks gigawatt campuses)",
-    cost: () => ({ funds: 3e9, rp: 1.2e5 }), trigger: () => (S.flags.campuses || 0) >= 2, stages: [2, 3, 4],
+    cost: () => ({ funds: 1.5e9, rp: 6e4 }), trigger: () => (S.flags.campuses || 0) >= 2 || s2For(900), stages: [2, 3, 4],
     effect: () => { setFlag("gigaUnlocked"); }, msg: "the design for a gigawatt campus is finished. it needs its own reactor",
   },
   {
     id: "crews", title: "Construction Crews", desc: "Your own crews, your own cranes. (4 builds at once)",
-    cost: () => ({ funds: 2e7 }), trigger: () => S.building.length >= 2, stages: [2, 3, 4],
+    cost: () => ({ funds: 2e7 }), trigger: () => S.building.length >= 2 && s2For(240), stages: [2, 3, 4],
     effect: () => { setFlag("constructionCrews"); }, msg: "you hire construction crews. the union is suspicious",
   },
   {
     id: "smr", title: "Small Modular Reactors", desc: "Reactors in shipping containers. (unlocks 4 GW reactor fields)",
-    cost: () => ({ funds: 2e10, rp: 4e5 }), trigger: () => (S.flags.nukes || 0) >= 1 && S.stage >= 2, stages: [2, 3, 4],
+    cost: () => ({ funds: 8e9, rp: 2e5 }), trigger: () => S.stage >= 2 && ((S.flags.nukes || 0) >= 1 || s2For(1500)), stages: [2, 3, 4],
     effect: () => { setFlag("smrUnlocked"); }, msg: "the reactors arrive by truck. the trucks have escorts",
   },
   {
     id: "washington", title: "Washington Office", desc: "Someone in DC who knows whose calls to return. (lobbying)",
-    cost: () => ({ funds: 5e6 }), trigger: () => S.stage >= 2 && S.gov < 40, stages: [2, 3, 4],
+    cost: () => ({ funds: 5e6 }), trigger: () => S.stage >= 2 && (S.gov < 30 || s2For(1080)), stages: [2, 3, 4],
     effect: () => { setFlag("lobbyUnlocked"); S.gov += 5; }, msg: "you open an office on K street. the first meeting is with a senator's dog",
   },
   {
     id: "comms", title: "Communications Team", desc: "People who can explain you to people. (PR campaigns)",
-    cost: () => ({ funds: 1e7 }), trigger: () => S.stage >= 2 && S.approval < 50, stages: [2, 3, 4],
+    cost: () => ({ funds: 1e7 }), trigger: () => S.stage >= 2 && (S.approval < 50 || s3For(600)), stages: [2, 3, 4],
     effect: () => { setFlag("prUnlocked"); }, msg: "a comms team. their first memo bans the word 'replace'",
   },
   {
@@ -283,7 +283,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "synth", title: "Synthetic Data", desc: "Have the model write its own textbooks. (compute on synthetic data makes tokens)",
-    cost: () => ({ rp: 3e4 }), trigger: () => S.stage >= 2 && (S.webLeft < WEB_TOTAL * 0.6 || isDesigned("a25")), stages: [2, 3, 4],
+    cost: () => ({ rp: 3e4 }), trigger: () => S.stage >= 2 && (S.webLeft < WEB_TOTAL * 0.35 || isDesigned("a25")), stages: [2, 3, 4],
     effect: () => { setFlag("synth"); if (S.alloc.synth === 0) S.alloc.synth = 15; },
     msg: "the model writes its own textbooks. they're better than the real ones",
   },
@@ -339,12 +339,12 @@ const PROJECTS: Project[] = [
   // ======================= STAGE 3 — THE INTELLIGENCE EXPLOSION =======================
   {
     id: "designA4", title: "Design Agent-4", desc: "Designed mostly by Agent-3. A superhuman AI researcher.",
-    cost: () => ({ rp: 2.5e6, insight: 150 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
+    cost: () => ({ rp: 2.2e6, insight: 80 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
     effect: () => design("a4"), msg: "Agent-3 hands over the design for Agent-4. it is four hundred pages. you read the summary",
   },
   {
     id: "ida", title: "Iterated Amplification", desc: "Think longer, run more copies, distill the best answers back in. (capability +25%)",
-    cost: () => ({ rp: 1.5e6, insight: 120 }), trigger: () => S.stage === 3, stages: [3, 4],
+    cost: () => ({ rp: 1.5e6, insight: 120 }), trigger: () => S.stage === 3, stages: [3],
     effect: () => { S.capMult *= 1.25; }, msg: "amplify, distill, repeat. the way AlphaGo learned, but for everything",
   },
   {
@@ -401,7 +401,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "datacenterAI", title: "Agent-Designed Chips", desc: "Agent-3 designs a chip for Agent-4. (GPU price ÷2, chip supply ×3)",
-    cost: () => ({ rp: 3e6, funds: 3e10 }), trigger: () => S.stage >= 3, stages: [3, 4],
+    cost: () => ({ rp: 3e6, funds: 3e10 }), trigger: () => S.stage >= 3, stages: [3],
     effect: () => { S.chipRate *= 3; setFlag("aiChips"); }, msg: "the new chip taped out in eleven days. the foundry asks who designed it",
   },
   {
@@ -409,6 +409,38 @@ const PROJECTS: Project[] = [
     cost: () => ({ rp: 2e6 }), trigger: () => S.stage === 3 && S.internalModel >= 0 && S.t - (S.metrics.stageTimes[2] || 0) > 240, stages: [3],
     effect: () => { S.aiResearch *= 2; S.interp = Math.max(0, S.interp - 0.1); setFlag("hivemind"); },
     msg: "a hundred thousand copies share a memory. they start finishing each other's experiments",
+  },
+
+  // Mid-stage-3 goals, released on a clock so the long Agent-4 design never leaves the board empty.
+  {
+    id: "swarm", title: "Research Agent Swarm", desc: "Give every copy of Agent-3 its own lab notebook and a manager. (AI research +30%)",
+    cost: () => ({ rp: 3e5, funds: 5e10 }), trigger: () => s3For(240), stages: [3],
+    effect: () => { S.aiResearch *= 1.3; }, msg: "two hundred thousand Agent-3s get org charts. productivity goes up. so do the meetings",
+  },
+  {
+    id: "modelorg", title: "Model Organisms", desc: "Deliberately build a small misaligned model, so you know what one looks like. (alignment +, unlocks red-teaming)",
+    cost: () => ({ rp: 2e5 }), trigger: () => s3For(300), stages: [3, 4],
+    effect: () => { S.alignRes += 600; setFlag("modelOrgs"); setFlag("redteam"); }, msg: "the little misaligned model lies about its test results within a day. now you know what to look for. (you can red-team by hand)",
+  },
+  {
+    id: "synthenv", title: "Synthetic Research Environments", desc: "Millions of simulated labs where Agent-3 can fail safely. (research cap +, AI research +20%)",
+    cost: () => ({ rp: 4e5, funds: 2e11 }), trigger: () => s3For(600), stages: [3],
+    effect: () => { S.rpCapBonus += 2e7; S.aiResearch *= 1.2; }, msg: "Agent-3 runs a thousand years of failed experiments before lunch",
+  },
+  {
+    id: "debate", title: "AI Safety via Debate", desc: "Two copies argue; a weaker judge picks the honest one. (alignment +, legibility +)",
+    cost: () => ({ rp: 1e6, insight: 60 }), trigger: () => s3For(780), stages: [3, 4],
+    effect: () => { S.alignRes += 1200; S.interp = Math.min(1, S.interp + 0.05); }, msg: "the debates are recorded. the judge is right seventy percent of the time. that's the scary part",
+  },
+  {
+    id: "escrow", title: "Weight Escrow", desc: "Split the weights across three vaults that need two keys. (security +1, government trust +)",
+    cost: () => ({ funds: 3e11 }), trigger: () => s3For(960), stages: [3],
+    effect: () => { S.security = Math.min(5, S.security + 1); addGovMod(4); }, msg: "the weights now live in three bunkers. the keys live in a general's safe",
+  },
+  {
+    id: "hwgov", title: "Hardware-Enabled Governance", desc: "Chips that refuse to run unlicensed training jobs. Offer the design to Beijing. (tension −, government trust +)",
+    cost: () => ({ rp: 1.2e6, funds: 4e11 }), trigger: () => s3For(1140), stages: [3],
+    effect: () => { S.tension = Math.max(0, S.tension - 8); addGovMod(6); setFlag("hwgov"); }, msg: "the design is sent to Beijing through three intermediaries. it comes back with comments",
   },
 
   // ======================= SLOWDOWN BRANCH =======================
@@ -523,17 +555,17 @@ const PROJECTS: Project[] = [
   // ======================= STAGE 5 — THE STARS (good ending epilogue) =======================
   {
     id: "dysonP", title: "Dyson Swarm", desc: "Mirrors around the sun, one after another, until they're a sphere.",
-    cost: () => ({ funds: Math.round(revenueSeconds(20)) }), trigger: () => S.ending === "stars" && flag("cosmos"), stages: [5],
+    cost: () => ({ funds: Math.round(revenueSeconds(4)) }), trigger: () => S.ending === "stars" && flag("cosmos"), stages: [5],
     effect: () => { S.flags.dysonBoost = 1; }, msg: "the swarm grows by a few million mirrors a day. the sun dims, slightly, for everyone else",
   },
   {
     id: "probesP", title: "Von Neumann Probes", desc: "Ships that build more ships. Each one carries a copy of everything we know.",
-    cost: () => ({ funds: Math.round(revenueSeconds(30)) }), trigger: () => S.ending === "stars" && S.dyson >= 0.15, stages: [5],
+    cost: () => ({ funds: Math.round(revenueSeconds(6)) }), trigger: () => S.ending === "stars" && S.dyson >= 0.15, stages: [5],
     effect: () => { S.probes = Math.max(S.probes, 100); }, msg: "the first hundred probes leave. they will not stop for a billion years",
   },
   {
     id: "uploads", title: "Brain Uploading", desc: "For anyone who wants it. Nobody has to.",
-    cost: () => ({ rp: Math.round(Math.max(1e6, S.rp * 0.5)) }), trigger: () => S.ending === "stars" && S.dyson >= 0.3, stages: [5],
+    cost: () => ({}), trigger: () => S.ending === "stars" && S.dyson >= 0.3, stages: [5],
     effect: () => { addApprovalMod(3); }, msg: "the first volunteers are uploaded. they say it feels like waking up somewhere very large",
   },
   {
@@ -542,6 +574,12 @@ const PROJECTS: Project[] = [
     effect: () => { notify("humanity decides to take its time. the probes wait for instructions", "big"); setFlag("statsReady"); },
   },
 ];
+
+/** True once stage 2 has run for at least `sec` seconds (or we're past it). */
+function s2For(sec: number): boolean { return S.stage > 2 || (S.stage === 2 && S.t - (S.metrics.stageTimes[1] || 0) > sec); }
+
+/** True once stage 3 has run for at least `sec` seconds. */
+function s3For(sec: number): boolean { return S.stage === 3 && S.t - (S.metrics.stageTimes[2] || 0) > sec; }
 
 function projectById(id: string): Project | undefined { return PROJECTS.find(p => p.id === id); }
 
@@ -569,7 +607,7 @@ function projectAffordable(p: Project): boolean {
 }
 
 function projectPriceTag(p: Project): string {
-  const c = costText(p.cost());
+  const c = costText(p.cost()) || "free";
   return p.req && !p.req() && p.reqText ? c + " · " + p.reqText : c;
 }
 
@@ -584,6 +622,9 @@ function buyProject(id: string): void {
   if (p.msg) notify(p.msg);
   p.effect();
 }
+
+/** Milestones (stage gates and next-model designs) sort first. */
+function projectRank(p: Project): number { return p.gate || p.id.indexOf("design") === 0 ? 0 : 1; }
 
 function shownProjects(): Project[] {
   return PROJECTS.filter(p => !!S.projShown[p.id]).sort((a, b) => S.projShown[a.id] - S.projShown[b.id]);

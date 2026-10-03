@@ -91,6 +91,16 @@ function monthLabel(m: number, long = false): string {
   return (long ? MONTHS_LONG[mo] : MONTHS[mo]) + " " + y;
 }
 
+const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/** "14 March 2026": the header date, so the calendar visibly moves even when months are slow. */
+function dateLabel(m: number): string {
+  const total = 6 + Math.floor(m);
+  const mo = ((total % 12) + 12) % 12;
+  const day = 1 + Math.min(MONTH_DAYS[mo] - 1, Math.floor((m - Math.floor(m)) * MONTH_DAYS[mo]));
+  return day + " " + monthLabel(m, true);
+}
+
 function monthYear(m: number): number {
   return 2025 + Math.floor((6 + Math.floor(m)) / 12);
 }

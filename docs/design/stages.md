@@ -101,7 +101,17 @@ The model ladder runs Agent-0 → 1 → 1.5 → 2 → 2.5 → 3 → 4, then bran
 - allocate compute to **research automation**, **monitoring** (older models watching newer ones) and **alignment**;
 - buy **interpretability** and control projects;
 - choose **neuralese** (big capability gain, legibility collapses);
-- **security** levels SL1–SL5.
+- **security** levels SL1–SL5;
+- **red-team** the frontier model by hand, a cooldown verb unlocked by Model Organisms. It gives alignment research and sometimes surfaces a warning sign.
+
+**Clocked goals:** while Agent-4 is being designed, a new project arrives about every three minutes:
+
+1. Research Agent Swarm;
+2. Model Organisms;
+3. Synthetic Research Environments;
+4. AI Safety via Debate;
+5. Weight Escrow;
+6. Hardware-Enabled Governance.
 
 **New panels:**
 
