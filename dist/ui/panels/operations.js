@@ -31,7 +31,7 @@ export function update(s) {
     syncAction(completeBtn, s);
     show(statsLine, !!f.priceRow);
     if (f.priceRow)
-        setText(statsLine, `${fmtRate(s.rates.tasksPerSec, ' tasks/s')} · demand ${fmtRate(s.rates.demand)} · ${fmtMoney(s.rates.revenuePerSec)}/s`);
+        setText(statsLine, `demand ${fmtRate(s.rates.demand)} · capacity ${fmtRate(s.rates.capacity)} · revenue ${fmtMoney(s.rates.revenuePerSec)}/s`);
     show(priceRow, !!f.priceRow && !f.autoPricing);
     setText(priceVal, fmtMoney(s.market.price));
     syncAction(downBtn, s);

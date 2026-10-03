@@ -35,7 +35,7 @@ export function update(s: State): void {
   show(title, !!f.priceRow);
   syncAction(completeBtn, s);
   show(statsLine, !!f.priceRow);
-  if (f.priceRow) setText(statsLine, `${fmtRate(s.rates.tasksPerSec, ' tasks/s')} · demand ${fmtRate(s.rates.demand)} · ${fmtMoney(s.rates.revenuePerSec)}/s`);
+  if (f.priceRow) setText(statsLine, `demand ${fmtRate(s.rates.demand)} · capacity ${fmtRate(s.rates.capacity)} · revenue ${fmtMoney(s.rates.revenuePerSec)}/s`);
   show(priceRow, !!f.priceRow && !f.autoPricing);
   setText(priceVal, fmtMoney(s.market.price));
   syncAction(downBtn, s);

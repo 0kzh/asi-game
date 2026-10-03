@@ -102,6 +102,17 @@ try {
   const shipped = await page.locator('.logLine', { hasText: 'agent-1 shipped in' }).count();
   check(shipped > 0, 'log shows "agent-1 shipped in M:SS."');
 
+  // Save from the footer, reload without ?fresh, and the run continues where it was.
+  const before = await page.evaluate(() => ({ tasks: Math.floor(window.game.state.res.tasks), stage: window.game.state.stage, order: window.game.state.projectOrder.join(',') }));
+  await page.click('#menuSave');
+  await page.goto(`${base}/?dev=1`);
+  await page.waitForSelector('#tasksHeader');
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => ({ tasks: Math.floor(window.game.state.res.tasks), stage: window.game.state.stage, order: window.game.state.projectOrder.join(',') }));
+  check(after.stage === before.stage && after.tasks >= before.tasks && after.order === before.order, `save → reload restores the run (stage ${after.stage}, ${after.tasks} tasks)`);
+  const roundTrip = await page.evaluate(() => { const j = window.game.dev.snapshot(); window.game.dev.load(j); return window.game.dev.snapshot() === j; });
+  check(roundTrip, 'dev.snapshot() → dev.load() round-trips');
+
   // The chart draws once its flag is set (from the dev overlay's chart button).
   await page.click('#devOverlay button:text-is("chart")');
   await page.waitForTimeout(300);
