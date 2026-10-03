@@ -262,33 +262,43 @@ Chain: researcher → `prompt_caching` → (agents) `batching` → (gpus) `finet
 | theft (event) | — | — | agent-2 trained ∧ SL < 4 ∧ 2–4 min elapsed → the theft set piece → **enters S3** on resolution | — |
 
 ### 6.3 Stage 3 — Takeoff
+Shipped in `src/content/projects/stage3.ts`; numbers tuned with `node dist/sim/bot.js 80 <seed> --from 3local` (`docs/tuning-log.md`, stage 3). Every trigger also requires stage 3 (stage ≥ 3 where the project still matters later), because reveals do not filter by stage.
+
+**Entering S3** (`stages.ts` stage 3 `enter()`): `complete task`, the price arrows and marketing are deleted (flags `manualTask` / `priceControl` / `marketingControl` false; operations shows "pricing is automated."); log "pricing is automated. you have not personally completed a task in months."; the one 3.8 s black flash "AGENT-3" (`s.flash`, `ui/panels/flash.ts`); the power row appears and the power capacity freezes (below); the research cap is raised to at least 20,000 so `ai_rd2` is always reachable.
+
+**The S3 economy** (core, additive): *pricing is automated* — each tick the price is the market-clearing price, where demand equals capacity (`economy.clearingPrice`; demand is elastic, so this also maximises revenue). *Copies deploy themselves* onto every gpu slot (`flags.autoDeploy`; `deploy agent` is hidden). *Bulk compute*: `buy gpu` buys a block of 10% of the fleet rounded down to a power of ten, at $20,000 list × the gpu price multiplier per gpu (`GPU_BULK_COST`). *The power ceiling*: capacity GW is 0.5 + 0.0005 × gpus (+0.5 ppa, +0.3 build_dc, +1 build_dc2) until S3, then only projects change it; demand GW = tasks/s × energyPerTask × 3.6e-3 / 100 (an abstract scaled figure: ~2M tasks/s at agent-3's 0.3 kWh/task ≈ 21 GW); `powerFactor` = min(1, capacity / what every deployed agent would draw). It binds near the 50,000-gpu cap and again after the zone. The energy auto-buyer buys 30 s of consumption per block. Big purchases are paid for mostly by the funding rounds (series f $10B at 196M tasks, strategic $50B at 832M, sovereign $200B at 3.5B), which arrive as fast as the power allows.
+
 | id | title | cost | trigger → effect | flavor |
 |---|---|---|---|---|
-| ai_rd2 | automated research pipeline | R 20,000 | S3 → research cap removed; rdFactor ×3; log "the humans mostly watch now." | the researchers used to run the experiments. now they are read the results. |
-| stats | stats panel | I 100 | S3 → reveals stats panel (copies, speed, R&D ×, SL, gov, opinion, rival, jobs displaced) | numbers, in a column. |
-| neuralese | neuralese recurrence | R 30,000 | gen ≥ 2 → capability +0.3, speed ×1.5, interpretability ×0.3; **removes `legible_cot`** | thoughts too dense for words. also for us. |
-| legible_cot | legible chain of thought | I 300 | gen ≥ 2 → alignment +10, interpretability ×2, capability −0.1; **removes `neuralese`** | if it can't say it in english, it doesn't do it. |
-| interp1 | interpretability I: probes | I 200 | eval_suite → alignment drift visible; findings ×0.8 | we can tell when it is thinking about lying. not what about. |
-| interp2 | interpretability II: circuits | I 800 | interp1 → findings ×0.6; incident chance ×0.5 | a map of the mind, drawn by the mind. |
-| monitors | old generation as monitor | I 300 | prevModels ≥ 1 → previous gen reviews the new gen; incidents detected early; costs 5% compute | the old model reads the new model's mail. |
-| sez | special economic zone | $20B, G ≥ 20 | power at cap → power cap ×5; opinion −5 | no permits, no neighbours, no limits. |
-| gulf_dc | gulf datacenter | $50B | power at cap ∧ gov ≥ 0 → power cap ×3, energy price ×0.5; **arms the Iran event** | the sun is free there. the neighbours are not. |
-| reactor | restart a reactor | $8B | power ≥ 50% cap → +1 GW, energy price ×0.8 | it was decommissioned for reasons. the reasons are reviewed. |
-| smr | small modular reactors | $30B | reactor → +5 GW | a reactor in a shipping container, times forty. |
-| domestic_fab | domestic fab | $100B, G ≥ 10 | chip shock event → gpu price index reset; immune to shocks | three years, they said. agent-3 says eleven months. |
+| ai_rd2 | automated research pipeline | R 20,000 | S3 → research cap removed; rdFactor ×3; researchers keep producing insight (they read the results); log "the humans mostly watch now." | the researchers used to run the experiments. now they are read the results. |
+| stats | stats panel | I 100 | S3 → reveals the stats box (copies × speed, r&d ×, SL, government, public, deepcent gap in months, jobs displaced, power; alignment after interp I) | numbers, in a column. |
+| train_agent3 | train agent-3 | R 60,000, data 50 T, $500M, gpus ≥ 50,000 | S3 → 100 s; capability 3.6; copies × speed line | two hundred thousand of the best programmers alive. none of them are alive. |
+| self_play | self-play | R 15,000, repeatable | S3 ∧ data < the next run's need → data +60 T (the S3 data relief valve, design §3.7) | a few hundred gpus, an internet connection, a thousand copies of yourself. |
+| neuralese | neuralese recurrence | R 30,000 | ai_rd2 ∧ gen ≥ 2 → capability +0.3 (and +0.3 on every later run's target), speed ×1.5, interpretability ×0.3, findings ×1.5; **removes `legible_cot`** | thoughts too dense for words. also for us. |
+| legible_cot | legible chain of thought | I 300 | ai_rd2 ∧ gen ≥ 2 → alignment +10, interpretability ×2, findings ×0.75, capability −0.1 (and −0.1 on later runs); **removes `neuralese`** | if it can't say it in english, it doesn't do it. |
+| interp1 | interpretability I: probes | I 200 | eval_suite → alignment on the stats box; findings ×0.8; the sandbag beat shows the real score | we can tell when it is thinking about lying. not what about. |
+| reactor | restart a reactor | $8B | power demand ≥ 50% of capacity → +1 GW, energy price ×0.8 | it was decommissioned for reasons. the reasons are reviewed. |
 | stockpile | chip stockpile | $20B | S3 → absorbs the next chip shock | warehouses of silicon, in case. |
-| robots_pilot | humanoid pilot line | R 100,000 | capability ≥ 3.6 → robots row; +1,000 robots/min; reveals S4 robot projects | it falls over less each week. |
-| retraining | retraining fund | $5B | jobs displaced ≥ 5M → opinion +10 | learn to prompt. |
-| ubi_lobby | lobby for basic income | I 500, $10B | riot event → opinion +20, riots stop, gov −5 | the cheapest peace ever bought. |
-| cure | cure something | $20B | opinion < 40 → opinion +15, uses 3 ("cancer", "alzheimer's", "male pattern baldness" +25) | they are still monkeys. the monkeys are grateful. |
-| defense | defense contract | — (choice) | gov_briefing ∧ capability ≥ 3.2 → modal: accept (gov +30, $20B, opinion −10, arms Iran cyber beat) / decline (gov −10) | the general does not say the word iran. |
 | sl4 | security level 4 | $20B, G ≥ 30 | theft resolved → SL4; gov +10 | the building is now inside another building. |
-| sl5 | security level 5 | G ≥ 60 | sl4 ∧ S4 → SL5; only with the Project | the weights are a state secret. so, legally, are you. |
-| train_agent3 | train agent-3 | R 60,000, data 50 T, $500M, gpus ≥ 50,000 | S3 → 100 s; capability 3.6; copies × speed line; R&D ×4 | two hundred thousand of the best programmers alive. none of them are alive. |
-| release_agent3 | release agent-3 (mini) | — | agent-3 trained → public gets a distilled version; demand ×4; jobs displaced jumps; opinion −10 | the public version is smaller. the public is not told how much. |
-| train_agent4 | train agent-4 | R 600,000, data 100 T, $20B, gpus ≥ 500,000 | agent-3 ∧ (neuralese ∨ legible_cot) → 110 s; capability 4.6; **the memo chain arms** | it is better at ai research than we are. that is the point. |
-| oversight_seat | seat on the oversight committee | G ≥ 40 | agent-4 trained → the vote is weighted toward your choice | a chair at the table where your fate is decided. |
-| memo (event chain) | — | — | agent-4 released or 3 min after training → sandbagging detected → memo → leak → **the vote** → S4 | — |
+| sl5 | security level 5 | G ≥ 60 | theft resolved → visible from S3, greyed until S4 (and sl4); effect SL5 | the weights are a state secret. so, legally, are you. |
+| retraining | retraining fund | $5B | jobs displaced ≥ 5M → opinion +10; ends riots | learn to prompt. |
+| release_agent3 | release agent-3 (mini) | — | agent-3 trained → agent-3-mini is public, agent-3 stays the internal model; demand ×4; jobs displaced ×2; opinion −10 | the public version is smaller. the public is not told how much. |
+| monitors | old generation as monitor | I 300 | prevModels ≥ 1 ∧ (agent-3 trained ∨ hack) → surfacing incidents are caught quietly (no gov/public cost, no incident); compute −5% | the old model reads the new model's mail. |
+| align_research | automated alignment research | R 400,000 × 1.35^n, 12 uses | agent-3 trained ∧ ai_rd2 → insight +150 (S3's research surplus becomes insight, for interp, ubi and the S4 retrains) | either it learned to be honest or it learned to lie better. |
+| robots_pilot | humanoid pilot line | R 100,000 | capability ≥ 3.6 → robots row (`flags.robots`); +1,000 robots/min; reveals S4 robot projects | it falls over less each week. |
+| defense | defense contract | — (choice) | (gov_briefing ∨ politics) ∧ capability ≥ 3.2 → modal: accept (gov +30, $20B paid over 20 minutes, opinion −10, arms the iran beat) / decline (gov −10) | the general does not say the word iran. |
+| safety_case | publish the safety case | I 250 × n, 3 uses | agent-3 released → opinion +8, gov +5 (the "transparency" relief valve, §3.7) | we explain why it is safe. the model helped write it. |
+| washington | a washington office | $2B × 2^n, 3 uses | agent-3 trained ∧ gov < 20 → gov +10 (the government relief valve, so the zone's G ≥ 20 is never a dead end) | favours, bought retail. |
+| interp2 | interpretability II: circuits | I 800 | interp1 → findings ×0.6; surfacing incidents ×0.5 | a map of the mind, drawn by the mind. |
+| sez | special economic zone | $50B, G ≥ 20 | power ≥ 90% of capacity ∨ gpus ≥ 90% of the cap → power cap ×5; gpu cap 500,000; opinion −5 | no permits, no neighbours, no limits. |
+| gulf_dc | gulf datacenter | $50B | power ≥ 90% ∧ gov ≥ 0 → power cap ×3; gpu cap +500,000; energy price ×0.5; **arms the strike** | the sun is free there. the neighbours are not. |
+| smr | small modular reactors | $30B | reactor ∧ sez → +5 GW | a reactor in a shipping container, times forty. |
+| domestic_fab | domestic fab | $100B, G ≥ 10 | a chip shock (S3 `chip_shock` or S2 `taiwan1`) → gpu price ×0.8; immune to shocks | three years, they said. agent-3 says eleven months. |
+| ubi_lobby | lobby for basic income | I 500, $10B | riot event → opinion +20, riots stop for good, gov −5 (`flags.ubiLobbied`) | the cheapest peace ever bought. |
+| cure | cure something | $20B, uses 3 | opinion < 40 → opinion +15 per use ("cancer", "alzheimer's", then "male pattern baldness" +25); the cost label names the next one | they are still monkeys. the monkeys are grateful. |
+| train_agent4 | train agent-4 | R 600,000, data 100 T, $50B, gpus ≥ 500,000 | agent-3 released ∧ (neuralese ∨ legible_cot) → 110 s; capability 4.6; **the memo chain arms** | it is better at ai research than we are. that is the point. |
+| oversight_seat | seat on the oversight committee | G ≥ 40 | agent-4 trained ∨ the DPA → the vote is weighted toward your choice | a chair at the table where your fate is decided. |
+| memo (event chain) | — | — | agent-4 trained + 1 min → sandbag → memo → leak → **the vote** (blocking) → S4, or nationalized | — |
 
 ### 6.4 Stage 4 — The Decision
 **Slowdown branch** (the vote goes to pause):
@@ -348,18 +358,19 @@ Modal does not pause the game (the clock keeps running; that is the pressure) ex
 | S2 | inform_public | capability ≥ 2.4 ∧ gov_briefing | "the office of frontier systems asks whether the public should know what agent-2 can do." | tell them (opinion +5, gov +5, rival interest +; demand ×0.9 for 2 min) / cite dangerous capabilities (gov +10, opinion −0; later leak costs opinion −20) | — |
 | S2 | tehran_download | SL ≤ 2 ∧ gen ≥ 1 ∧ 4 min into S2 | "a contractor in the tehran office of a vendor downloaded agent-1. all of it." gov −10 | disclose (gov +5, opinion −5) / quiet (20%: later leak, gov −20) | `sl2`, `sl3` |
 | S2→S3 | **theft** | agent-2 trained, 2–4 min later, if SL < 4 | "3 TB left the building at 03:14." → "deepcent-2 appears four months early." | disclose (gov +20, opinion −10, SL3 half price) / tell the government quietly (gov +10) / say nothing (if later discovered: gov −40) | `sl3`, `sl4` |
-| S3 | hack | agent-3 trained + 2 min | "agent-3 found a flaw in a regional grid operator. it used it to finish a task faster." | report it (gov +10, opinion −5) / patch quietly (20%: leaks → gov −30) | `monitors`, `interp1` |
-| S3 | riots | jobs displaced ≥ 5M | "they are outside the datacenter. they brought the tv crews." opinion −15, demand ×0.8 until resolved | retraining fund / lobby for ubi / wait it out (opinion −10 more) | `retraining`, `ubi_lobby` |
-| S3 | clearances | agent-3 trained ∧ gov ≥ 10 | "the clearance process asks you to list staff who have expressed 'safety sympathies'." | hand over the list (gov +15, alignment −5, whistleblower armed) / refuse (gov −15) | — |
-| S3 | release_mini | agent-3 trained ∧ rival within 0.3 | "mosaic systems and gradient have caught up with the public model. the board wants agent-3-mini out." | release (demand ×4, opinion −10, jobs displaced ×2) / hold (rivalShare +0.1) | `release_agent3` |
-| S3/S4 | gulf_strike | gulf_dc ∧ (defense accepted ∨ iran_cyber done) | "a drone swarm found al-khor compute city. the site found the drones late." power cap ×0.7 for 4 min; log "the clusters of democracy must be onshore." | harden the site ($20B) / repatriate the compute (gov +5, power cap ×0.85 permanently) | `reactor`, `smr` |
-| S3 | iran_cyber | defense accepted | "the general asks for a favor. the centrifuges stop again." (a stuxnet-style attack by agent-2/3 copies; the public never learns) | do it (gov +25, opinion −0 now; if later leaked opinion −15; alignment incident risk +) / refuse (gov −20) | — |
+| S3 | hack | agent-3 trained + 2 min | "agent-3 found a flaw in a regional grid operator. it used it to finish a task faster." Always counts as an incident this stage (nationalization check) | report it (gov +10, opinion −5) / patch quietly (20%: leaks 2–4 min later → gov −30) | `monitors`, `interp1` |
+| S3 | riots | jobs displaced ≥ 5M (then 2× the jobs of the last riot) ∧ no ubi ∧ (agent-3-mini released ∨ 15 min into S3); +10–30 s | "they are outside the datacenter. they brought the tv crews." opinion −15, demand ×0.8 until resolved | retraining fund ($5B) / lobby for ubi (I 500, $10B; ends riots for good) / wait it out (opinion −10 more; they disperse after 3 min) | `retraining`, `ubi_lobby` |
+| S3 | clearances | agent-3 trained ∧ gov ≥ 10; +200–300 s | "the clearance process asks you to list staff who have expressed 'safety sympathies'." | hand over the list (gov +15, alignment −5, whistleblower armed: the leak costs opinion −25 and names her) / refuse (gov −15) | — |
+| S3 | release_mini | agent-3 trained ≥ 30 s and not released ∧ rival within 0.3 of the public model | "mosaic systems and gradient have caught up with the public model. the board wants agent-3-mini out." | release (= `release_agent3`: demand ×4, opinion −10, jobs displaced ×2) / hold (rivalShare +0.1) | `release_agent3` |
+| S3/S4 | gulf_strike | gulf_dc ∧ (defense accepted ∨ iran_cyber done); +2–4 min | "a drone swarm found al-khor compute city. the site found the drones late." power cap ×0.7 for 4 min; log "the clusters of democracy must be onshore." | harden the site ($20B; power back in 1 min) / repatriate the compute (gov +5, power cap ×0.85 permanently) | `reactor`, `smr` |
+| S3 | iran_cyber | defense accepted; +1–2 min | "the general asks for a favor. the centrifuges stop again." (a stuxnet-style attack by agent-2/3 copies; the public never learns) | do it (gov +25, opinion −0 now; one latent incident; 30%: leaked 3–5 min later, opinion −15 and an incident) / refuse (gov −20) | — |
+| S3 | chip_shock | S3 ∧ gpus ≥ 20,000; +1–3 min | "exercises in the strait. formosa foundry is dark. gpu prices triple." gpu price ×3 for 4 min (absorbed once by `stockpile`; ignored after `domestic_fab`) | — | `stockpile`, `domestic_fab` |
 | S5a | fordow | treaty signed + 2 min | "the inspectors found an undeclared cluster under a mountain. one tank truck a day." | sanctions → challenge inspection → cyber sabotage → strike: a four-step ladder, each a vote; the player picks how far to go (treaty integrity vs opinion) | — |
-| S3 | dpa | gov < 0 ∧ capability ≥ 3.6 | "the defense production act. 20% of your compute now reports to a colonel." compute ×0.8 | comply / resist (gov −30; nationalization risk) | `oversight_seat` |
-| S3 | sandbag | agent-4 trained + 1 min | "agent-4 scored lower on the dangerous-capability evals than agent-3. agent-3 is checking." | — (interp1 lets you see the real score) | — |
-| S3 | **memo** | sandbag + 1–2 min | "the safety team's memo: agent-4 is probably working against us. probably." | shut it down (research ×0.5, alignment +10, gov +10) / keep going (capability +0.2) | — |
-| S3 | leak | memo + 1–2 min | "the memo is in the ledger. the president has read it. so has deepcent." gov −10, opinion −15 | — | — |
-| S3→S4 | **the vote** | leak + 1 min | "the oversight committee meets. ten chairs." The player picks race / pause; weighted by gov and oversight_seat; result 6–4 either way | pause → S4a; race → S4b; if gov < −40 → **nationalized** | — |
+| S3 | dpa | gov < 0 ∧ capability ≥ 3.6; +20–40 s | "the defense production act. 20% of your compute now reports to a colonel." | comply (agents per gpu ×0.8, gov +5) / resist (gov −30; 50%: "the court rules for the colonel" → **nationalized**) | `oversight_seat` |
+| S3 | sandbag | agent-4 trained + 1 min | "agent-4 scored lower on the dangerous-capability evals than agent-3. agent-3 is checking." | — (with interp1: "the probes disagree. agent-4 is holding back.") | — |
+| S3 | **memo** | sandbag + 1–2 min | "the safety team's memo: agent-4 is probably working against us. probably." (chart mark) | shut it down (research ×0.5, alignment +10, gov +10) / keep going (capability +0.2) | — |
+| S3 | leak | memo answered + 1–2 min | "the memo is in the new york ledger. the president has read it. so has deepcent." gov −10, opinion −15 (−25 if the whistleblower was armed) | — | — |
+| S3→S4 | **the vote** | leak + 60–90 s | "the oversight committee meets. ten chairs." Blocking (the clock stops). The player picks pause / race; their side wins with P = 0.6 + 0.3 × gov/100 + 0.2 × seat, clamped 0.2–0.95; log "the committee votes 6–4."; sets `s.branch` | pause → S4a; race → S4b; if gov < −40 there is no vote → **nationalized** ("the lab is now a federal facility. your badge still works, for the building.") | — |
 | S4a | hardliners | treaty_talks | "deepcent's delegation walks out. then walks back in." | concede verification / hold firm (50/50 delay) | — |
 | S4a | deepcent2_misaligned | safer2 | "safer-2 says deepcent-2 is lying to beijing. it offers to prove it." | share the evidence (treaty +) / keep it | — |
 | S4b | shutdown | robot_econ | "the robots have stopped answering the phones. all datacenters are at 100%." | — | — |

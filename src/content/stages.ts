@@ -4,6 +4,8 @@
 import type { Stage, State } from '../core/types.js';
 import { dayOf } from '../core/stages.js';
 import { shippedLine } from '../core/models.js';
+import { log } from '../core/events.js';
+import { freezePower } from '../core/takeoff.js';
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
@@ -42,10 +44,29 @@ export const STAGES: Stage[] = [
   {
     id: 3, name: 'takeoff',
     startDay: dayOf(2027, 2), endDay: dayOf(2027, 11),
-    flash: 'takeoff',
+    // No `flash` here: enter() sets s.flash, so the boundary has exactly one flash.
     exitLine: () => 'the committee votes 6–4.',
     exit: (s) => (s.flags.voteResolved ? 4 : null),
-    enter: (s) => { s.flags.stage3 = true; },
+    enter: (s) => {
+      s.flags.stage3 = true;
+      s.milestones.stamps.stage3 ??= s.t;
+      // The stage-1 controls are deleted (design §5, §9.1).
+      s.flags.manualTask = false;
+      s.flags.priceControl = false;
+      s.flags.marketingControl = false;
+      s.flags.noManual = true;      // core: complete_task hidden
+      s.flags.autoPricing = true;   // core: market-clearing price; price arrows and marketing hidden
+      s.flags.autoDeploy = true;    // copies deploy themselves onto every gpu slot
+      s.flags.bulkGpus = true;      // buy gpu buys blocks at a bulk price
+      // The power ceiling: capacity stops following the gpu count (design §3.5).
+      s.flags.power = true;
+      freezePower(s);
+      // The automated pipeline (20,000 research) must be reachable whatever the cap was.
+      const base = 150 + 250 * s.res.engineers;
+      s.caps.researchBonus = Math.max(s.caps.researchBonus, 20000 - base);
+      log(s, 'pricing is automated. you have not personally completed a task in months.');
+      s.flash = 'AGENT-3';
+    },
     progress: (s) => capProgress(s, 2.8, 4.6),
   },
   {

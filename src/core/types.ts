@@ -39,6 +39,9 @@ export interface Mods {
   gpuPriceMult: number;    // gpu price curve multiplier (lease_dc reset)
   energyPriceMult: number; // ppa
   energyDriftMult: number; // ppa
+  rdMult: number;          // S3: multiplier on AI research (automated pipeline ×3)
+  capBonus: number;        // S3: added to every later run's capability target (neuralese +0.3, legible cot −0.1)
+  findingsMult: number;    // S3: multiplier on red-team findings at evals (interp, architecture)
 }
 
 export interface ModelState {
@@ -116,6 +119,9 @@ export interface Politics {
   riots: boolean;
   dpa: boolean;
   oversightSeat: boolean;
+  jobsMult: number;      // S3: release_agent3 doubles jobs displaced
+  riotCount: number;     // S3: riots so far
+  riotJobs: number;      // S3: jobs displaced (M) the next riot needs (5, then twice the last riot's)
 }
 
 export interface Rival {
@@ -215,6 +221,7 @@ export interface State {
   rates: Rates;
   chart: [number, number, number][]; // [day, capability, rival capability]
   chartMarks: [number, string][];    // [day, label]: releases, the theft, the memo, the vote, the treaty
+  flash: string;                     // full-screen flash text; the flash panel plays it and clears it
   ending?: EndingId;
 }
 
