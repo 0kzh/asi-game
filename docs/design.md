@@ -70,7 +70,7 @@ revenuePerSec       = tasksPerSec × price
 idle                = max(0, capacity − demand)  → after `idle-time research`: research += idle × 0.01/s
 powerFactor         = min(1, powerCapacityGW / powerDemandGW)   (S3+; before S3 it is 1)
 ```
-`baseDemand` = 2 tasks/s. `capMult` = 10^(capability−1) (each capability point is 10× the market). `refPrice(capability)` = $0.25 × 3^(capability−1): the market tolerates higher prices for more capable models. Price starts at $0.25 and is adjusted with ▲▼ in $0.01 / 1% steps (Paperclips). From S3 pricing is automated and the control disappears.
+`baseDemand` = 4 tasks/s (tuned from 2; `docs/tuning-log.md`), so the first 8 agents just saturate the market at the start price. `capMult` = 10^(capability−1) (each capability point is 10× the market). `refPrice(capability)` = $0.25 × 3^(capability−1): the market tolerates higher prices for more capable models. Price starts at $0.25 and is adjusted with ▲▼ in $0.01 / 1% steps (Paperclips). From S3 pricing is automated and the control disappears.
 
 ### 3.2 Research and insight
 ```
@@ -82,13 +82,13 @@ insight/s       = researchers × 0.1 while research == cap (after `reading group
 Projects cost research (capability/infra), insight (alignment/interp/policy), funds (physical), sometimes gov (favours) or opinion.
 
 ### 3.3 Headcount (the trust analogue)
-Task milestones at **Fibonacci × 1,000**: 3k, 5k, 8k, 13k, 21k, 34k, 55k, 89k, 144k, 233k, 377k, 610k, 987k, 1.6M, 2.6M, 4.2M, 6.8M, 11M, 17.8M, 28.8M, 46.6M, 75M, 121M, 196M, 317M … each grants **+1 headcount**. Every third milestone is also a **funding round** (pre-seed, seed, Series A…F, strategic, sovereign) that adds funds equal to ~45 s of current revenue (min table value) and a log line with the valuation. Headcount is spent for free: `hire researcher` (+1 research/s) or `hire engineer` (+250 research cap, +2% agentsPerGpu). Trap + respec: `reorg` (insight 50) lets you reassign everyone once (Paperclips' Xavier Re-initialization). From S3 milestones keep granting headcount, but it stops mattering (AI research dominates) and the log says so.
+Task milestones at **Fibonacci × 1,000**: 3k, 5k, 8k, 13k, 21k, 34k, 55k, 89k, 144k, 233k, 377k, 610k, 987k, 1.6M, 2.6M, 4.2M, 6.8M, 11M, 17.8M, 28.8M, 46.6M, 75M, 121M, 196M, 317M … each grants **+1 headcount**. Every third milestone is also a **funding round** (pre-seed, seed, Series A…F, strategic, sovereign) that adds funds equal to ~45 s of current revenue (min table value: pre-seed $1,500, seed $10,000, series a $100k, b $2M, c $20M, d $200M, e $2B, f $10B, strategic $50B, sovereign $200B; `src/content/events/lines.ts`) and a log line with the valuation. Headcount is spent for free: `hire researcher` (+1 research/s) or `hire engineer` (+250 research cap, +2% agentsPerGpu). Trap + respec: `reorg` (insight 50) lets you reassign everyone once (Paperclips' Xavier Re-initialization). From S3 milestones keep granting headcount, but it stops mattering (AI research dominates) and the log says so.
 
 ### 3.4 Energy
-`buy energy`: 500 kWh at `energyPrice` ($120 base; sine drift ±$30 over 5 min; +$2 per purchase, decays 0.5%/25 s; floor $70). `energy auto-buyer` (project) buys when energy < 10 s of consumption. `power purchase agreement` fixes price and buys in 50 MWh blocks. Own generation (gas turbines, solar + storage, restarted reactor, SMRs, orbital solar) adds `energy/s` and later **GW capacity**. Bail-out: if `energy == 0 && funds < energyPrice && agents > 0` for 5 s → project `emergency power` (cost: −1 gov; "the grid operator extends credit. once.") appears, giving 2,000 kWh. Mirrors Beg for More Wire.
+`buy energy`: 500 kWh at `energyPrice` = `ceil(base + 30·sin(purchases))` (Paperclips' wire wobble; $120 base, +$2 per purchase, base decays 0.5% per 25 s without a purchase back toward $120; floor $70). `energy auto-buyer` (project) buys when energy < 10 s of consumption. `power purchase agreement` fixes price (−30%, drift ×0.3) and the auto-buyer then buys in 50 MWh blocks when it can afford one (the manual button stays at 500 kWh). Own generation (gas turbines, solar + storage, restarted reactor, SMRs, orbital solar) adds `energy/s` and later **GW capacity**. Bail-out: if `energy == 0 && funds < energyPrice && agents > 0` for 5 s → project `emergency power` (cost: −1 gov; "the grid operator extends credit. once.") appears, giving 2,000 kWh. Mirrors Beg for More Wire.
 
 ### 3.5 Compute
-`deploy agent` costs $5 × 1.1^n (Paperclips AutoClipper curve). Cap: `gpus × agentsPerGpu`. `buy gpu` costs $400 × 1.07^n until the first datacenter; datacenters reset the curve to a bulk price and raise the GPU cap (50 → 500 → 5k → 50k → 500k → ∞). Chip shocks (Taiwan) multiply GPU price ×3 until `domestic fab`. From S3, compute is also capped by **power** (GW): `powerDemandGW = tasks/s × energyPerTask / 1000 × 3.6` (abstracted), capacity from datacenters/SEZ/Gulf/nuclear/orbital.
+`deploy agent` costs $5 × 1.1^n (Paperclips AutoClipper curve). Cap: `gpus × agentsPerGpu`. `buy gpu` costs $100 × 1.07^n (tuned from $400; `docs/tuning-log.md`) until the first datacenter; datacenters reset the curve to a bulk price and raise the GPU cap (50 → 500 → 5k → 50k → 500k → ∞). Chip shocks (Taiwan) multiply GPU price ×3 until `domestic fab`. From S3, compute is also capped by **power** (GW): `powerDemandGW = tasks/s × energyPerTask / 1000 × 3.6` (abstracted), capacity from datacenters/SEZ/Gulf/nuclear/orbital.
 
 ### 3.6 Compute allocation (S2+; ADR workers panel)
 ```
@@ -221,8 +221,8 @@ Opening (no projects): `complete task` → at $5 `deploy agent` appears (log: "a
 | reading_group | reading group | R 120 | research has been at cap once → reveals insight; insight accrues while capped | thursday afternoons. papers nobody ran. |
 | web_crawl | crawl the web | R 150 | model panel visible → data +3 T; reveals data row | everything anyone ever wrote. terms of service notwithstanding. |
 | better_agents | agent scaffolding | R 200 | agents ≥ 15 → speed ×1.5 | tools, memory, a loop that doesn't forget. |
-| lease_dc | lease a datacenter | $25,000 | gpus ≥ 40 → gpu cap 50 → 500, gpu price curve reset ×0.8 | forty racks in a former paper mill. |
-| ppa | power purchase agreement | $8,000 | auto_energy ∧ energy spend ≥ $2,000 → energy price −30%, drift ×0.3, buys in 50 MWh blocks | ten years, fixed rate, no questions. |
+| lease_dc | lease a datacenter | $25,000 | gpus ≥ 40 ∨ (gpu_delay fired ∧ gpus ≥ 5) → gpu cap 50 → 500, gpu price curve reset ×0.8 | forty racks in a former paper mill. |
+| ppa | power purchase agreement | $8,000 | auto_energy ∧ energy spend ≥ $2,000 → energy price −30%, drift ×0.3, the auto-buyer buys in 50 MWh blocks | ten years, fixed rate, no questions. |
 | coding_assistant | coding assistant | R 250 | capability ≥ 1.5 → demand ×1.6, refPrice ×1.2 | developers pay for autocomplete. who knew. |
 | hiring_pipeline | university pipeline | $3,000 | headcount total ≥ 5 → +2 headcount | equity and a slide. |
 | reorg | reorg | I 50 | researchers ≥ 4 ∧ engineers = 0 (or vice versa) → reassign all headcount once | everyone gets a new title. nothing else changes. |
@@ -230,7 +230,7 @@ Opening (no projects): `complete task` → at $5 `deploy agent` appears (log: "a
 | release_agent1 | release agent-1 | — | train_agent1 complete → scorecard; demand ×3; **enters S2** | ship it. |
 | emergency_power | emergency power | G −1 | energy = 0 ∧ funds < energyPrice ∧ agents > 0 for 5 s → +2,000 kWh | the grid operator extends credit. once. |
 
-Chain: researcher → `prompt_caching` → (agents) `batching` → (gpus) `finetune` → model panel → `web_crawl` → (capability) `coding_assistant` → (gpus 20 / tasks 20k) `train_agent1` → `release_agent1`. Greyed-out carrot at every moment: `finetune` is visible ~2 min before it's affordable; `train_agent1` is visible from ~min 8 and affordable ~min 14.
+Chain: researcher → `prompt_caching` → (agents) `batching` → (gpus) `finetune` → model panel → `web_crawl` → (capability) `coding_assistant` → (gpus 20 / tasks 20k) `train_agent1` → `release_agent1`. Greyed-out carrot at every moment: `finetune` is visible ~2 min before it's affordable; `train_agent1` is visible from ~min 11–12 (20k tasks) and affordable ~min 14 (sim bot; `docs/tuning-log.md`).
 
 ### 6.2 Stage 2 — Agents
 | id | title | cost | trigger → effect | flavor |

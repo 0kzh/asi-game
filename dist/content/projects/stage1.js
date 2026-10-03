@@ -113,9 +113,9 @@ export const PROJECTS = [
         effect: (s) => {
             s.mods.energyPriceMult *= 0.7;
             s.mods.energyDriftMult *= 0.3;
-            s.energyMkt.block = 50000;
+            s.energyMkt.autoBlock = 50000;
         },
-        done: 'a power purchase agreement. energy −30%, in 50 MWh blocks.',
+        done: 'a power purchase agreement. energy −30%. the auto-buyer buys 50 MWh at a time.',
         desc: 'ten years, fixed rate, no questions.',
     },
     {

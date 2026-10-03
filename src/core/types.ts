@@ -102,7 +102,8 @@ export interface EnergyMarket {
   autoBuy: boolean;
   generation: number;    // kWh/s of own generation (S2+)
   spend: number;         // lifetime $ spent on energy
-  block: number;         // kWh per purchase (500; 50,000 after ppa)
+  block: number;         // kWh per manual purchase (500)
+  autoBlock: number;     // kWh per auto-buyer purchase (500; 50,000 after ppa)
   decayTimer: number;    // seconds since the last 0.5% base decay
 }
 

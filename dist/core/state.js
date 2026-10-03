@@ -28,7 +28,7 @@ export function newState(seed = 1) {
         training: null,
         alloc: { deploy: 1, research: 0, safety: 0 },
         market: { price: 0.25, marketing: 0, productMult: 1, rivalShare: 0, lastRevenue: 0, waitlist: 0, lifetimeRevenue: 0 },
-        energyMkt: { price: 120, base: 120, purchases: 0, autoBuy: false, generation: 0, spend: 0, block: 500, decayTimer: 0 },
+        energyMkt: { price: 120, base: 120, purchases: 0, autoBuy: false, generation: 0, spend: 0, block: 500, autoBlock: 500, decayTimer: 0 },
         pol: { gov: 0, opinion: 50, security: 1, jobsDisplaced: 0, ubi: false, riots: false, dpa: false, oversightSeat: false },
         rival: { name: 'deepcent', capability: 1.0, released: 0 },
         projects: {},

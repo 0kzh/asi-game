@@ -87,11 +87,11 @@ export function gpuCost(s) {
 export function marketingCost(s) {
     return MARKETING_BASE_COST * Math.pow(2, s.market.marketing);
 }
-/** Price of one block: ceil(base + 30·sin(purchases)) per 500 kWh, floor $70. */
-export function energyPrice(s) {
+/** Price of `kwh` (default: one manual block): ceil(base + 30·sin(purchases)) per 500 kWh, floor $70. */
+export function energyPrice(s, kwh = s.energyMkt.block) {
     const m = s.energyMkt;
     const per500 = Math.max(ENERGY_FLOOR * s.mods.energyPriceMult, Math.ceil((m.base + 30 * s.mods.energyDriftMult * Math.sin(m.purchases)) * s.mods.energyPriceMult));
-    return per500 * (m.block / ENERGY_BLOCK);
+    return per500 * (kwh / ENERGY_BLOCK);
 }
 // ------------------------------------------------------------------ player actions
 export function canCompleteTask(s) {
@@ -137,13 +137,13 @@ export function buyGpu(s) {
 export function canBuyEnergy(s) {
     return s.res.funds >= energyPrice(s);
 }
-export function buyEnergy(s) {
-    if (!canBuyEnergy(s))
+export function buyEnergy(s, kwh = s.energyMkt.block) {
+    const p = energyPrice(s, kwh);
+    if (s.res.funds < p)
         return false;
-    const p = energyPrice(s);
     const m = s.energyMkt;
     s.res.funds -= p;
-    s.res.energy += m.block;
+    s.res.energy += kwh;
     m.purchases += 1;
     m.base += 2;
     m.decayTimer = 0;
@@ -225,10 +225,12 @@ export function applyEconomyTick(s, dt) {
     s.stats.revenueTotal += revenue;
     s.market.lastRevenue = revenue / dt;
     s.market.waitlist = Math.max(0, dem - cap);
-    // Auto-buyer: when < 10 s of use remain.
+    // Auto-buyer: when < 10 s of use remain; in 50 MWh blocks after the ppa when affordable.
     const usePerSec = Math.min(cap, dem) * ept;
-    if (m.autoBuy && r.energy < usePerSec * 10 && canBuyEnergy(s))
-        buyEnergy(s);
+    if (m.autoBuy && r.energy < usePerSec * 10) {
+        if (!(m.autoBlock > m.block && buyEnergy(s, m.autoBlock)))
+            buyEnergy(s);
+    }
     // Research and insight.
     const rcap = researchCap(s);
     s.caps.researchCap = rcap;
