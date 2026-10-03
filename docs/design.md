@@ -17,9 +17,15 @@
 
 ## 1. The world
 
-Fictional names in the AI 2027 register. The player's lab is **Nimbus** (alternatives in reference-analysis §naming). The Chinese rival is **DeepCent**. Other US labs: **Praxis**, **Helion**, **Marrow**. Chips: **Tanaka Semiconductor** (Taiwan), **Vanta** (US fabless). Clouds: **Cumulus**, **Bedrock**. Government: the **Oversight Committee**, the **Office of Advanced Computation (OAC)**, the **Defense Production Act**. Press: *The Ledger*, *Signal*, *Wire*. Sites: **Tianwan CDZ** (DeepCent's megacampus), **Red Mesa SEZ** (ours), **Al Dhafra** (Gulf site).
+Fictional names in the AI 2027 register (reference-analysis Part V §7, the naming bible; the content files import them from `src/content/names.ts`).
 
-Models: **Agent-0** (what you start with), **Agent-1** … **Agent-5**; slowdown branch retrains as **Safer-1** … **Safer-4**, ending in **Consensus-1**. DeepCent's are **DeepCent-1** … **DeepCent-2**.
+- The player's lab: **OpenCortex**. Models: **Agent-0** (what you start with), **Agent-1** … **Agent-5**; the slowdown branch retrains as **Safer-1** … **Safer-4**, ending in **Consensus-1**. Public distillations are **Agent-N-mini**.
+- The Chinese rival: **DeepCent**, with **DeepCent-1 / DeepCent-2**, headquartered after mid-2026 in the **Tianwan CDZ** (Centralized Development Zone).
+- Trailing US labs ("the Five" when the DPA folds them in): **Themis AI** (safety-branded; its alignment people defect to you after the memo), **Gradient** (the incumbent's division; most compute, least focus), **Vulcan Intelligence** (founder-led, lobbies against you), **Mosaic Systems** (open weights; matches Agent-0 in early 2026).
+- Chips and clouds: **Tensorworks** (GPUs; its datacenter revenue is the market's thermometer), **Formosa Foundry** (Taiwan; 80% of US AI chips), **Northwind** (your cloud landlord), **Cumulus** (the neocloud), in-house inference chip **Lodestar**.
+- Government: **the Oversight Committee** (keep the source name), **the Office of Frontier Systems (OFS)** (the AISI analogue, asks for the briefing), **Joint Compute Command** (runs the shutdown switch), the President (unnamed), Vice President **Carla Reyes**, Senate opposition leader **Thaddeus Brock**. Instruments: the **Defense Production Act**, the **Executive Order on chip tracking**.
+- Press and people: **The New York Ledger** ("Secret OpenCortex AI Is Out of Control, Insider Warns"), **Substrate** (the tech site), "the feed" (AI twitter). Whistleblower **Dana Okafor** (alignment team, formerly Themis). OpenCortex CEO **Julian Vance** is "you" when a name is unavoidable; alignment lead **Ines Valkenburg**; security chief **Marcus Odell**; the remaining spy is only ever "the analyst".
+- Sites: **Mesa Verde Campus** (your first owned datacenter), **Prairie Site** (the 10 GW campus), **Al-Khor Compute City** (the Gulf site; cheap sun, Iranian drones), **Nevada Autonomous Manufacturing Zone** (the first SEZ), **Hainan Launch Zone** (DeepCent's), **the Desert** (where the robots are built).
 
 ## 2. Resources (the A Dark Room stores panel)
 
@@ -170,7 +176,7 @@ Sales curve: the release sets `productMult` = 2.0 decaying to 1.0 over 8 minutes
 | S4 | Safer-4 | 5.9 | ~min 180 | | 120 s | | 20 | superintelligent and (mostly) aligned |
 | C1 | Consensus-1 | 6.2 | ending | treaty | — | | | the joint model |
 
-Capability reference lines (chart, right-hand labels): 1.0 "average human", 2.0 "professional", 3.0 "top expert", 3.6 "superhuman coder", 4.0 "best researcher", 5.0 "superintelligent researcher", 6.0 "all of humanity". The chart's y-axis is this index (log scale implied), x-axis is the in-game date from Jul 2025; the rival's curve is dashed and labelled "deepcent (est.)".
+Capability reference lines (chart, right-hand labels, from reference-analysis Part V §3.2 and Appendix E): 1.0 "average human", 1.5 "a reliable remote worker", 2.0 "a professional programmer", 3.0 "the best human coder", 3.6 "superhuman coder (×50,000, ×30 speed)", 4.0 "the best researcher alive", 5.0 "einstein", 6.0 "all of humanity combined", 7.0 "a century every six months". The chart's y-axis is this index (one unit ≈ one order of magnitude of effective capability, log scale implied); x-axis is the in-game date from Jul 2025 with year ticks; the rival's curve is dashed and labelled "deepcent (est.)" until `verification regime` makes it solid; vertical ticks mark releases, the theft, the memo, the vote, the treaty. The stats box shows the derived "r&d multiplier" (1× → 2,000×, Part V §2) next to "copies × speed".
 
 ## 5. Stages (the Paperclips wiki template)
 
@@ -339,11 +345,16 @@ Modal does not pause the game (the clock keeps running; that is the pressure) ex
 | S2 | poaching | researchers ≥ 6 | "deepcent is offering triple." | match (−$) / let them go (−2 researchers, rival +0.1) | `retention` |
 | S2 | liaison | capability ≥ 2.2 | "a man from the office of advanced computation asks for a briefing." | brief them (gov +10) / decline (gov −10, later audit) | `gov_briefing`, `sl2` |
 | S2 | taiwan1 | gpus ≥ 2,000 | "exercises in the strait. the fabs are on generator power." gpu price ×2 for 3 min | — | `chip_deal`, `stockpile` |
+| S2 | inform_public | capability ≥ 2.4 ∧ gov_briefing | "the office of frontier systems asks whether the public should know what agent-2 can do." | tell them (opinion +5, gov +5, rival interest +; demand ×0.9 for 2 min) / cite dangerous capabilities (gov +10, opinion −0; later leak costs opinion −20) | — |
+| S2 | tehran_download | SL ≤ 2 ∧ gen ≥ 1 ∧ 4 min into S2 | "a contractor in the tehran office of a vendor downloaded agent-1. all of it." gov −10 | disclose (gov +5, opinion −5) / quiet (20%: later leak, gov −20) | `sl2`, `sl3` |
 | S2→S3 | **theft** | agent-2 trained, 2–4 min later, if SL < 4 | "3 TB left the building at 03:14." → "deepcent-2 appears four months early." | disclose (gov +20, opinion −10, SL3 half price) / tell the government quietly (gov +10) / say nothing (if later discovered: gov −40) | `sl3`, `sl4` |
 | S3 | hack | agent-3 trained + 2 min | "agent-3 found a flaw in a regional grid operator. it used it to finish a task faster." | report it (gov +10, opinion −5) / patch quietly (20%: leaks → gov −30) | `monitors`, `interp1` |
 | S3 | riots | jobs displaced ≥ 5M | "they are outside the datacenter. they brought the tv crews." opinion −15, demand ×0.8 until resolved | retraining fund / lobby for ubi / wait it out (opinion −10 more) | `retraining`, `ubi_lobby` |
-| S3 | iran | gulf_dc ∧ defense accepted | "a drone found the gulf site. the gulf site found the drone late." power cap ×0.7 for 4 min | harden the site ($) / move the compute (gov −5) | — |
-| S3 | iran_cyber | defense accepted | "the general asks for a favor. centrifuges." | do it (gov +25, opinion −15, alignment incident risk) / refuse (gov −20) | — |
+| S3 | clearances | agent-3 trained ∧ gov ≥ 10 | "the clearance process asks you to list staff who have expressed 'safety sympathies'." | hand over the list (gov +15, alignment −5, whistleblower armed) / refuse (gov −15) | — |
+| S3 | release_mini | agent-3 trained ∧ rival within 0.3 | "mosaic systems and gradient have caught up with the public model. the board wants agent-3-mini out." | release (demand ×4, opinion −10, jobs displaced ×2) / hold (rivalShare +0.1) | `release_agent3` |
+| S3/S4 | gulf_strike | gulf_dc ∧ (defense accepted ∨ iran_cyber done) | "a drone swarm found al-khor compute city. the site found the drones late." power cap ×0.7 for 4 min; log "the clusters of democracy must be onshore." | harden the site ($20B) / repatriate the compute (gov +5, power cap ×0.85 permanently) | `reactor`, `smr` |
+| S3 | iran_cyber | defense accepted | "the general asks for a favor. the centrifuges stop again." (a stuxnet-style attack by agent-2/3 copies; the public never learns) | do it (gov +25, opinion −0 now; if later leaked opinion −15; alignment incident risk +) / refuse (gov −20) | — |
+| S5a | fordow | treaty signed + 2 min | "the inspectors found an undeclared cluster under a mountain. one tank truck a day." | sanctions → challenge inspection → cyber sabotage → strike: a four-step ladder, each a vote; the player picks how far to go (treaty integrity vs opinion) | — |
 | S3 | dpa | gov < 0 ∧ capability ≥ 3.6 | "the defense production act. 20% of your compute now reports to a colonel." compute ×0.8 | comply / resist (gov −30; nationalization risk) | `oversight_seat` |
 | S3 | sandbag | agent-4 trained + 1 min | "agent-4 scored lower on the dangerous-capability evals than agent-3. agent-3 is checking." | — (interp1 lets you see the real score) | — |
 | S3 | **memo** | sandbag + 1–2 min | "the safety team's memo: agent-4 is probably working against us. probably." | shut it down (research ×0.5, alignment +10, gov +10) / keep going (capability +0.2) | — |
