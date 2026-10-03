@@ -34,6 +34,7 @@ function fundingRound(s: State, n: number): void {
   const row = FUNDING_ROUNDS[Math.min(n, FUNDING_ROUNDS.length - 1)];
   const amount = Math.max(row.min, ROUND_REVENUE_SECONDS * s.rates.revenuePerSec);
   s.res.funds += amount;
+  s.flags[`round:${row.name}`] = true; // content can wait for a round (the zone waits for the strategic round)
   const valuation = Math.max(row.valuation, amount * 40);
   log(s, `${row.name}: ${fmtPrice(amount)} at a ${fmtMoney(valuation)} valuation. ${row.quip}`);
 }

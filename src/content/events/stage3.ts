@@ -7,7 +7,8 @@ import { markBought } from '../../core/projects.js';
 import { enterStage } from '../../core/stages.js';
 import { REG } from '../../core/registry.js';
 import { markIncident, nationalize, riotsDue, dpaDue, startRiots, RIOT_SECONDS } from '../../core/politics.js';
-import { DEFENSE_SECONDS, rivalGapMonths } from '../../core/takeoff.js';
+import { DEFENSE_SECONDS } from '../../core/takeoff.js';
+import { monthsBehind } from '../../core/rival.js';
 import { NAMES } from '../names.js';
 
 const N = NAMES;
@@ -439,7 +440,7 @@ export const CHOICES3: ChoiceEvent[] = [
     scenes: {
       start: {
         text: (s) => {
-          const gap = Math.max(0, Math.round(rivalGapMonths(s)));
+          const gap = monthsBehind(s);
           const seat = s.pol.oversightSeat ? 'one of them is yours.' : 'none of them is yours.';
           return `${N.government.committee} meets. ten chairs. ${seat} ${N.rival} is ${gap} month${gap === 1 ? '' : 's'} behind.`;
         },

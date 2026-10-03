@@ -75,7 +75,8 @@ export function update(s: State): void {
       setAttr(b, 'aria-pressed', b.dataset.action === `budget:${m.budget}` ? 'true' : 'false');
     }
     if (budgetInfo && p?.training) {
-      setText(budgetInfo, `${Math.round(runDuration(p.training, m.budget))} s · gain ×${runGain(m.budget).toFixed(2)} · deployment −${Math.round(m.budget * 100)}%`);
+      const waiting = s.training?.phase === 'done' ? ` · ${s.training.name} ships first` : '';
+      setText(budgetInfo, `${Math.round(runDuration(p.training, m.budget))} s · gain ×${runGain(m.budget).toFixed(2)} · deployment −${Math.round(m.budget * 100)}%${waiting}`);
     }
   }
   // Blink *** EVENT *** in the tab title while a modal is open (ADR).

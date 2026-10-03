@@ -94,3 +94,8 @@ export function fmtElapsed(seconds: number): string {
 export function pct(x: number): string {
   return `${Math.round(x * 100)}%`;
 }
+
+/** A multiplier: 1.0× … 9.9×, then whole numbers, capped for display at 2,000× (design §4.5). */
+export function fmtMult(x: number): string {
+  return x < 10 ? `${x.toFixed(1)}×` : `${fmtInt(Math.min(2000, x))}×`;
+}

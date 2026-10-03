@@ -1,7 +1,8 @@
-// A local stage-3 start for the stage-3 sim and smoke test ('3local'). The official
-// snapshot '3' belongs to stage 2's content; this one sets the state stage 2 would leave
-// directly, so it works whether or not the stage-2 projects are registered:
-// agent-2 released at capability 2.8, the theft resolved, February 2027, minute 60.
+// Stage 3's local reference start ('3local'), kept for comparison only: `node dist/sim/bot.js
+// 85 <seed> --from 3local`. It is the state stage 3 was first tuned against (tuning-log.md,
+// stage 3), set directly: agent-2 released at capability 2.8, the theft resolved, February
+// 2027, minute 60. The dev overlay, `--from 3` and the smoke test use the official snapshot
+// '3' (snapshots/stage3.ts), which is the sim's state at the theft.
 import type { State } from '../../core/types.js';
 import { applyProject, checkProjects } from '../../core/projects.js';
 import { updateReveals } from '../../core/economy.js';

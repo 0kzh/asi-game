@@ -39,9 +39,9 @@ export interface Mods {
   gpuPriceMult: number;    // gpu price curve multiplier (lease_dc reset)
   energyPriceMult: number; // ppa
   energyDriftMult: number; // ppa
-  rdMult: number;          // S3: multiplier on AI research (automated pipeline ×3)
+  rdMult: number;          // multiplier on AI research from copies (keep_internal ×2 in S2; automated pipeline ×3 in S3)
   capBonus: number;        // S3: added to every later run's capability target (neuralese +0.3, legible cot −0.1)
-  findingsMult: number;    // S3: multiplier on red-team findings at evals (interp, architecture)
+  findingsMult: number;    // multiplier on red-team findings at evals (honesty ×0.8 in S2; interp, architecture in S3)
 }
 
 export interface ModelState {
@@ -129,6 +129,7 @@ export interface Rival {
   capability: number;
   stoleAt?: number;
   released: number;
+  interest: number;      // theft interest multiplier (S2+): theft chance/min = base(SL) × interest
 }
 
 export interface ProjectState {

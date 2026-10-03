@@ -8,6 +8,7 @@ import { enterStage } from '../core/stages.js';
 import { milestoneAt } from '../core/milestones.js';
 import { log } from '../core/events.js';
 import { REG } from '../core/registry.js';
+import { snapshot3 } from './snapshots/stage3.js';
 
 /** Stage-1 projects bought by agent-1's release, in the order a typical run buys them. */
 export const S1_ORDER = [
@@ -57,13 +58,6 @@ function snapshot2(seed: number): State {
   log(s, 'agent-1 released.');
   enterStage(s, 2);
   s.ambientAt = s.t + 60;
-  return s;
-}
-
-function snapshot3(seed: number): State {
-  const s = snapshot2(seed);
-  s.flags.theftResolved = true;
-  enterStage(s, 3);
   return s;
 }
 

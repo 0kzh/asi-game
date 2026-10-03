@@ -38,13 +38,4 @@ export function update(s: State): void {
 Already mounted and waiting for their flags: `allocation` (`allocPanel`), `chart` (`chart`), `politics` (`politics`), `stats` (`stats`), `ending` (`s.ending`).
 
 ## A snapshot
-Snapshots live in `src/dev/snapshots.ts`. A snapshot applies a list of projects (`applyProject` uses `snapshot ?? effect`), sets resources, marks earlier set pieces as fired, then calls `enterStage`. Snapshot 3 currently is:
-```ts
-function snapshot3(seed: number): State {
-  const s = snapshot2(seed);
-  s.flags.theftResolved = true;
-  enterStage(s, 3);
-  return s;
-}
-```
-To fill it in, add an `S2_ORDER` of stage-2 projects, apply them, then set stage-3 resources the way `snapshot2` does. Stage `enter()` stubs live in `src/content/stages.ts`. The generation table (`src/content/models.ts`) already holds agent-2…5, safer-1…4 and consensus-1.
+Snapshots live in `src/dev/snapshots.ts` (and `src/dev/snapshots/<stage>.ts` for the longer ones). A snapshot applies a list of projects (`applyProject` uses `snapshot ?? effect`), sets resources, marks earlier set pieces as fired, then calls `enterStage`. Snapshot 3 (`snapshots/stage3.ts`) replays `S1_ORDER`, enters stage 2, replays `S2_ORDER`, and sets resources to the sim bot's state at the theft (`node dist/sim/bot.js 70 <seed> --from 2`, "state at theft"); odd seeds keep agent-2 internal, even seeds release it. The dev overlay, `--from 3` and the smoke test use it. `snapshots/stage3.local.ts` ('3local') is stage 3's original reference start, kept only for comparison runs. When stage 2 changes, re-take snapshot 3 from the sim rather than tuning stage 3 against an old one. Stage `enter()` effects live in `src/content/stages.ts`. The generation table (`src/content/models.ts`) holds agent-2…5, safer-1…4 and consensus-1.

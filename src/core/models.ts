@@ -45,11 +45,29 @@ function runName(key: string): string {
   return key === 'finetune' ? 'the fine-tune' : generation(key).name;
 }
 
-/** Only one run at a time, and only once the previous model has been released (until `pipelines`). */
+/** Only one run at a time, and only once the previous model has been released (until `pipelines`).
+ *  With `pipelines` the next run may start while the last one awaits its release: starting it
+ *  ships the waiting model first (shipWaitingRun), so a trained model is never overwritten. */
 export function canStartRun(s: State): boolean {
   if (s.training && !s.flags.pipelines) return false;
   if (s.training && s.training.phase !== 'done') return false;
   return s.model.released || !!s.flags.pipelines;
+}
+
+/** Ship the finished run the way the model panel's [release] does: through its `release_<key>`
+ *  project when there is one (so the project's effects apply once), otherwise release() directly. */
+export function shipWaitingRun(s: State): boolean {
+  const tr = s.training;
+  if (!tr || tr.phase !== 'done') return false;
+  const p = REG.projectById[`release_${tr.key}`];
+  const st = s.projects[`release_${tr.key}`];
+  if (p && !st?.bought && !st?.removed) {
+    markBought(s, p.id);
+    if (p.done) log(s, p.done);
+    p.effect(s);
+    return true;
+  }
+  return release(s);
 }
 
 /** Begin a run (costs already paid). */
@@ -65,7 +83,7 @@ export function beginRun(s: State, key: string, projectId: string, budget: numbe
     budget: tutorial ? 0.5 : budget,
     gain: tutorial ? 1 : runGain(budget),
     capStart: s.model.capability,
-    capTarget: g.capability + (s.mods.capBonus ?? 0),
+    capTarget: g.capability + s.mods.capBonus,
     capNow: s.model.capability,
     findings: 0,
     safetyFirst: false,
@@ -95,6 +113,7 @@ export function startTrainingFromModal(s: State): boolean {
   pay(s, cost);
   markBought(s, p.id);
   s.modal = null;
+  shipWaitingRun(s); // `pipelines`: the finished run ships before the new one replaces it
   beginRun(s, p.training, p.id, m.budget);
   return true;
 }
@@ -143,7 +162,7 @@ function enterPhase(s: State, tr: TrainingRun, phase: TrainingRun['phase']): voi
     log(s, pick(s, TRAINING_LINES.post));
   } else if (phase === 'evals') {
     const base = generation(tr.key).findings;
-    const f = base * (0.7 + rand(s) * 0.6) * (tr.safetyFirst ? 0.5 : 1) * (s.mods.findingsMult ?? 1);
+    const f = base * (0.7 + rand(s) * 0.6) * (tr.safetyFirst ? 0.5 : 1) * s.mods.findingsMult * (1 - s.alloc.safety);
     tr.findings = Math.max(0, Math.round(f));
     log(s, tr.findings > 0 ? `red team report: ${tr.findings} finding${tr.findings === 1 ? '' : 's'}.` : pick(s, TRAINING_LINES.evalsClean));
   } else if (phase === 'done') {
@@ -155,6 +174,24 @@ function enterPhase(s: State, tr: TrainingRun, phase: TrainingRun['phase']): voi
     const stamp = tr.key === 'finetune' ? 'finetuneDone' : `${tr.key}Trained`;
     if (s.milestones.stamps[stamp] === undefined) s.milestones.stamps[stamp] = s.t;
   }
+}
+
+export const SAFETY_PASS_SECONDS = 30;
+
+/** The end-of-run [another safety pass] (S2+, after `eval_suite`): 30 s more evals on the run's budget, findings −2. */
+export function canSafetyPass(s: State): boolean {
+  const tr = s.training;
+  return !!s.flags.evalSuite && !!tr && tr.phase === 'done' && tr.findings > 0 && !tr.tutorial;
+}
+
+export function safetyPass(s: State): boolean {
+  const tr = s.training;
+  if (!tr || !canSafetyPass(s)) return false;
+  tr.findings = Math.max(0, tr.findings - 2);
+  tr.phase = 'evals';
+  tr.progress = Math.max(POST_END, 1 - SAFETY_PASS_SECONDS / tr.duration);
+  tr.duration = SAFETY_PASS_SECONDS / (1 - tr.progress);
+  return true;
 }
 
 /** Dev: jump the current run to the end. */

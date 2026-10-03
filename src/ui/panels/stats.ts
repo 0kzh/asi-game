@@ -1,22 +1,13 @@
 // The stats box (S3, design §9.1): copies × speed, the r&d multiplier, security, government,
 // public, the deepcent gap, jobs displaced, power. A 1 px box; renders nothing until flags.stats.
 import type { State } from '../../core/types.js';
-import { fmtInt } from '../../core/format.js';
-import { agentSlots, aiResearchPerSec, powerCapacityGw, powerUsedGw } from '../../core/economy.js';
+import { fmtInt, fmtMult } from '../../core/format.js';
+import { agentSlots, powerCapacityGw, powerUsedGw, rdMultiplier } from '../../core/economy.js';
 import { agentSpeed } from '../../core/models.js';
-import { rivalGapMonths } from '../../core/takeoff.js';
+import { rivalGapMonths } from '../../core/rival.js';
 import { h, setText, show } from '../dom.js';
 
 interface Row { key: string; label: string; visible?: (s: State) => boolean; value: (s: State) => string }
-
-/** 1 + aiResearch / humanResearch, shown 1.0× … 2,000× (capped for display). */
-export function rdMultiplier(s: State): number {
-  return 1 + aiResearchPerSec(s) / Math.max(1, s.res.researchers);
-}
-
-function fmtMult(x: number): string {
-  return x < 10 ? `${x.toFixed(1)}×` : `${fmtInt(Math.min(2000, x))}×`;
-}
 
 function gapText(s: State): string {
   const m = Math.round(rivalGapMonths(s));
