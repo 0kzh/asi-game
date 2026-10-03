@@ -21,6 +21,7 @@
     "src/actions.ts",
     "src/projects.ts",
     "src/events.ts",
+    "src/events_more.ts",
     "src/beats.ts",
     "src/crisis.ts",
     "src/endings.ts",

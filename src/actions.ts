@@ -83,7 +83,7 @@ function doTask(): void {
   const pay = manualPay();
   S.funds += pay;
   S.fundsEarned += pay;
-  if (S.tasksManual <= 2 || Math.random() < 0.3) notify(pick(MANUAL_LINES) + ". " + fmtMoney(pay));
+  if (S.tasksManual <= 4 || (S.deployed < 0 && Math.random() < 0.3) || Math.random() < 0.06) notify(pick(MANUAL_LINES) + ". " + fmtMoney(pay));
 }
 
 function scrapeAmount(): number { return (S.flags.betterScraper ? 6e6 : 2.5e6) * S.dataMult; }

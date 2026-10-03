@@ -774,7 +774,7 @@ function manageEvents(): void {
   }
   if (S.t >= S.nextRandom) {
     const pool = EVENTS.filter(e => e.random && (!S.eventsDone[e.id] || e.repeat) && (() => { try { return e.random!(); } catch (x) { return false; } })());
-    const gap = S.stage === 1 ? 150 + Math.random() * 90 : 130 + Math.random() * 110;
+    const gap = S.stage === 1 ? 120 + Math.random() * 80 : 110 + Math.random() * 90;
     S.nextRandom = S.t + (pool.length ? gap : gap / 2);
     if (pool.length) startEvent(pick(pool).id);
   }

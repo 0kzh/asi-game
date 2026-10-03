@@ -3,13 +3,12 @@
 interface Beat { id: string; when: () => boolean; run: () => void; }
 
 function reveal(id: string): void {
-  if (S.revealed[id]) return;
-  S.revealed[id] = S.t;
+  if ((S.revealed[id] || 0) > 0) return;
+  S.revealed[id] = Math.max(S.t, 0.001);
   S.metrics.reveals.push({ id, t: S.t });
   revealDirty = true;
 }
 function hide(id: string): void { if (S.revealed[id]) { S.revealed[id] = -1; revealDirty = true; } }
-function isRevealed(id: string): boolean { return (S.revealed[id] || 0) > 0 || S.revealed[id] === 0 && false; }
 let revealDirty = true;
 
 function setMonthFloor(m: number): void { if (S.month < m) S.month = m; }

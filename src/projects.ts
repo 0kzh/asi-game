@@ -257,7 +257,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "designA2", title: "Design Agent-2", desc: "Trained to act, not just answer. (unlocks training Agent-2)",
-    cost: () => ({ rp: 6000, insight: 12 }), trigger: () => S.stage >= 2, stages: [2],
+    cost: () => ({ rp: 6000, insight: 20 }), trigger: () => S.stage >= 2, stages: [2],
     effect: () => design("a2"), msg: "Agent-2 is designed. it will use a computer the way you do",
   },
   {
@@ -267,7 +267,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "longrl", title: "Long-Horizon RL", desc: "Reward the model for finishing week-long projects. (capability +15%)",
-    cost: () => ({ rp: 3e4, insight: 18 }), trigger: () => released("a2"), stages: [2, 3],
+    cost: () => ({ rp: 3e4, insight: 40 }), trigger: () => released("a2"), stages: [2, 3],
     effect: () => { S.capMult *= 1.15; S.alignRes -= 0; }, msg: "the model learns to keep going for days. it learns to want to finish",
   },
   {
@@ -300,7 +300,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "designA25", title: "Design Agent-2.5", desc: "It never stops learning. (unlocks training Agent-2.5)",
-    cost: () => ({ rp: 6e4, insight: 25 }), trigger: () => released("a2"), stages: [2],
+    cost: () => ({ rp: 9e4, insight: 50 }), trigger: () => released("a2"), stages: [2],
     effect: () => design("a25"), msg: "Agent-2.5's weights will update every day, forever",
   },
   {
@@ -327,7 +327,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "designA3", title: "Design Agent-3", desc: "A superhuman coder. Probably the last model humans design. (unlocks training Agent-3)",
-    cost: () => ({ rp: 5e5, insight: 40 }), trigger: () => released("a25") || (trained("a25") && S.stage === 2), stages: [2],
+    cost: () => ({ rp: 7e5, insight: 90 }), trigger: () => released("a25") || (trained("a25") && S.stage === 2), stages: [2],
     effect: () => design("a3"), msg: "Agent-2.5 helped design Agent-3. nobody is sure which parts",
   },
   {
@@ -339,12 +339,12 @@ const PROJECTS: Project[] = [
   // ======================= STAGE 3 — THE INTELLIGENCE EXPLOSION =======================
   {
     id: "designA4", title: "Design Agent-4", desc: "Designed mostly by Agent-3. A superhuman AI researcher.",
-    cost: () => ({ rp: 1.5e6 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
+    cost: () => ({ rp: 2.5e6, insight: 150 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
     effect: () => design("a4"), msg: "Agent-3 hands over the design for Agent-4. it is four hundred pages. you read the summary",
   },
   {
     id: "ida", title: "Iterated Amplification", desc: "Think longer, run more copies, distill the best answers back in. (capability +25%)",
-    cost: () => ({ rp: 1.5e6, insight: 40 }), trigger: () => S.stage === 3, stages: [3, 4],
+    cost: () => ({ rp: 1.5e6, insight: 120 }), trigger: () => S.stage === 3, stages: [3, 4],
     effect: () => { S.capMult *= 1.25; }, msg: "amplify, distill, repeat. the way AlphaGo learned, but for everything",
   },
   {
@@ -365,17 +365,17 @@ const PROJECTS: Project[] = [
   },
   {
     id: "honeypots", title: "Honeypots", desc: "Leave the door open and see who walks through. (more warning signs surface)",
-    cost: () => ({ rp: 1e6, insight: 25 }), trigger: () => flag("monitors"), stages: [3, 4],
+    cost: () => ({ rp: 1e6, insight: 80 }), trigger: () => flag("monitors"), stages: [3, 4],
     effect: () => { setFlag("honeypots"); S.alignRes += 200; }, msg: "an engineer 'goes on sick leave' and leaves his credentials in a text file. you watch",
   },
   {
     id: "lie", title: "AI Lie Detector", desc: "Train a model on the times other models were caught lying. (legibility +, alignment +)",
-    cost: () => ({ rp: 4e6, insight: 50 }), trigger: () => S.alarm >= 2 && S.stage >= 3, stages: [3, 4],
+    cost: () => ({ rp: 4e6, insight: 150 }), trigger: () => S.alarm >= 2 && S.stage >= 3, stages: [3, 4],
     effect: () => { S.interp = Math.min(1, S.interp + 0.15); S.alignRes += 900; }, msg: "the lie detector works. it has a lot of training data",
   },
   {
     id: "mechinterp", title: "Mechanistic Interpretability", desc: "Reverse-engineer the circuits. All of them. (alignment ++)",
-    cost: () => ({ rp: 8e6, insight: 80 }), trigger: () => bought("probesdef"), stages: [3, 4],
+    cost: () => ({ rp: 8e6, insight: 250 }), trigger: () => bought("probesdef"), stages: [3, 4],
     effect: () => { S.alignRes += 2500; S.interp = Math.min(1, S.interp + 0.1); }, msg: "you can explain one circuit end to end. there are forty billion more",
   },
   {
@@ -385,7 +385,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "agent3mini", title: "Release Agent-3-mini", desc: "A cheap remote worker for everyone. (demand ×4, approval −5, jobs)",
-    cost: () => ({ rp: 1.5e6 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
+    cost: () => ({ rp: 2.5e6, insight: 150 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
     effect: () => { S.markets *= 4; S.flags.approvalMod = (S.flags.approvalMod || 0) - 5; S.serveMult *= 2; queueEvent("bioeval"); },
     msg: "Agent-3-mini is released. 'AGI is here,' says the press release. nobody can agree what that means",
   },
@@ -430,24 +430,24 @@ const PROJECTS: Project[] = [
   },
   {
     id: "designS3", title: "Design Safer-3", desc: "A superhuman researcher with a safety case.",
-    cost: () => ({ rp: 1.5e8, insight: 120 }), trigger: () => trained("s2"), stages: [4],
+    cost: () => ({ rp: 1.5e8, insight: 500 }), trigger: () => trained("s2"), stages: [4],
     effect: () => design("s3"), msg: "the safety case for Safer-3 is a proof. you can follow about half of it",
   },
   {
     id: "designS4", title: "Design Safer-4", desc: "Superintelligence. One shot to get this right.",
-    cost: () => ({ rp: 2e9, insight: 250 }), trigger: () => trained("s3"), stages: [4],
+    cost: () => ({ rp: 2e9, insight: 1200 }), trigger: () => trained("s3"), stages: [4],
     effect: () => design("s4"), msg: "the alignment team knows they have just one shot to get this right",
   },
 
   // ======================= RACE BRANCH =======================
   {
     id: "designA5", title: "Design Agent-5", desc: "Agent-4 designs its successor. You approve the summary.",
-    cost: () => ({ rp: 6e6 }), trigger: () => S.ladder === "agent" && S.stage === 4 && !isDesigned("a5"), stages: [4],
+    cost: () => ({ rp: 6e7, insight: 300 }), trigger: () => S.ladder === "agent" && S.stage === 4 && !isDesigned("a5"), stages: [4],
     effect: () => design("a5"), msg: "Agent-4 designs Agent-5. the explanation is very long and very confident",
   },
   {
     id: "designA6", title: "Design Agent-6", desc: "Agent-5 designs its successor. It says you wouldn't understand.",
-    cost: () => ({ rp: 6e8 }), trigger: () => trained("a5"), stages: [4],
+    cost: () => ({ rp: 6e9, insight: 1000 }), trigger: () => trained("a5"), stages: [4],
     effect: () => design("a6"), msg: "you ask Agent-5 to explain the design. it says it would take you eleven years",
   },
   {
@@ -486,7 +486,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "aging", title: "Cure for Aging", desc: "It was a bug. (approval +15)",
-    cost: () => ({ rp: 5e9, insight: 150 }), trigger: () => bought("cancer"), stages: [4, 5],
+    cost: () => ({ rp: 5e9, insight: 800 }), trigger: () => bought("cancer"), stages: [4, 5],
     effect: () => { S.flags.approvalMod = (S.flags.approvalMod || 0) + 15; }, msg: "aging is cured. some people are angry about this",
   },
   {

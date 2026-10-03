@@ -154,7 +154,7 @@ button.project.blink { animation: blink 0.36s steps(2, jump-none) 2; }
 .barFill { height: 100%; width: 0; background: var(--fg); }
 .barRow.threat .barFill { background: var(--warn); }
 .barRow.response .barFill, .barRow.conf .barFill { background: var(--good); }
-.barRow.train .barFill { background: var(--fg); transition: width 0.1s linear; }
+.barRow.train .barFill { background: var(--fg); }
 .next { margin-top: 8px; }
 .builds { margin-top: 6px; }
 
@@ -212,7 +212,8 @@ body.dark #eventWrap { background: rgba(0,0,0,0.6); }
 .sbtns span:hover { text-decoration: underline; }
 
 /* ---------- menu (A Dark Room) ---------- */
-#menu { position: fixed; right: 12px; bottom: 10px; color: #666; font-size: 15px; z-index: 10; background: var(--bg); }
+#top { position: relative; }
+#menu { position: absolute; right: 0; top: 0; color: #666; font-size: 15px; }
 #menu span { cursor: pointer; margin-left: 16px; }
 #menu span:hover { text-decoration: underline; }
 

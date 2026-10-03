@@ -426,7 +426,7 @@ const PANELS: PanelDef[] = [
   {
     id: "society", title: "Society", visible: () => rv("society"),
     build: b => {
-      txt(b, () => "unemployment: " + fmtPct(Math.min(0.95, S.jobs / workforce())));
+      txt(b, () => "unemployment: " + fmtPct(Math.min(0.95, S.jobs / workforce()), 1));
       bar(b, () => S.unrest / 100, () => "unrest: " + Math.round(S.unrest), undefined, "threat");
       const r = div(b, "btnRow");
       btn(r, { label: "−", onClick: () => { S.ubi = Math.max(0, +(S.ubi - 0.05).toFixed(2)); }, visible: () => flag("ubiUnlocked"), cls: "small" });

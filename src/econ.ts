@@ -219,7 +219,7 @@ function insightCapped(): boolean { return S.rp >= rpCap() - 0.5; }
 /** Paperclips' creativity, softened: a trickle from research, ×6 while research sits at its cap. */
 function insightRate(): number {
   if (!flag("insights")) return 0;
-  const base = 0.012 * Math.sqrt(Math.max(1, rpRate()));
+  const base = 0.008 * Math.sqrt(Math.max(1, rpRate()));
   return insightCapped() ? base * 6 + 0.05 : base;
 }
 
@@ -246,6 +246,7 @@ function dataRate(): number { return crawlRate() + synthRate() + userDataRate() 
 
 function trainRate(): number {
   if (!S.training) return 0;
+  if ((S.flags.trainPauseUntil || 0) > S.t) return 0;
   const sp = split();
   return sp.train * perf() * S.trainMult;
 }

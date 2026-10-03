@@ -139,7 +139,12 @@ await page.evaluate((cfg) => {
 const start = Date.now();
 let last = null;
 let lastPrint = 0;
+const shotAt = args.shots ? String(args.shotAt || "1,3,5,8,12,20").split(",").map(Number) : [];
 while (true) {
+  if (shotAt.length && last && last.t / 60 >= shotAt[0]) {
+    const m = shotAt.shift();
+    await page.screenshot({ path: `${args.shots}/bot_${PATH}_${m}m.png` });
+  }
   last = await page.evaluate((secs) => {
     const T = window.TAKEOFF; const B = window.__bot;
     for (let s = 0; s < secs; s++) {
@@ -152,17 +157,17 @@ while (true) {
       models: S.models.map(m => m.name), next: d.next, blocker: d.blocker, revenue: d.revenue, perf: d.perf, ending: S.ending,
       done: !!S.flags.statsReady, frontier: d.frontier, nuwa: d.nuwa, rd: d.rd, approval: S.approval, gov: S.gov, misalign: d.misalign, conf: d.conf,
       shown: Object.keys(S.projShown), res: S.researchers, rpRate: T.derived().rpRate, event: S.activeEvent && S.activeEvent.id, train: S.training && { gen: S.training.gen, pct: S.training.progress / S.training.need, eta: d.trainEta } };
-  }, 30);
+  }, shotAt.length ? 10 : 30);
   if (!args.quiet && last.t - lastPrint >= Number(args.every || 300)) {
     lastPrint = last.t;
     const mm = Math.floor(last.t / 60);
     console.log(`[${mm}m] s${last.stage} ${last.month} tasks=${last.tasks.toExponential(2)} $=${last.funds.toExponential(2)} rev=${last.revenue.toExponential(2)} gpu=${last.gpu.toExponential(2)} data=${last.data.toExponential(2)} rp=${last.rp.toExponential(1)}/${last.rpCap.toExponential(1)} (${last.res}r ${last.rpRate.toFixed(1)}/s) models=${last.models.join(",")} next=${last.next} [${last.blocker}] ${last.train ? "training " + last.train.gen + " " + Math.round(last.train.pct * 100) + "% eta " + Math.round(last.train.eta) : ""} perf=${last.perf.toFixed(2)} appr=${Math.round(last.approval)} gov=${Math.round(last.gov)} nuwa=${Math.round(last.nuwa)} us=${Math.round(last.frontier)} rd=${last.rd.toFixed(1)} shown=[${last.shown.join(",")}]`);
   }
   if (last.done || last.t > MAX) break;
-  if (Date.now() - start > 20 * 60 * 1000) { console.log("wall-clock limit"); break; }
+  if (Date.now() - start > Number(args.wall || 75) * 60 * 1000) { console.log("wall-clock limit"); break; }
 }
 
-const report = await page.evaluate(() => ({ metrics: window.TAKEOFF.metrics(), bot: { log: window.__bot.log, trainings: window.__bot.trainings, actions: window.__bot.actionsTaken },
+const report = await page.evaluate(() => ({ trained: Object.entries(window.TAKEOFF.state.beats).filter(([k]) => /^trained/.test(k)).map(([k, v]) => [k.replace("trained", ""), Math.round(v)]), metrics: window.TAKEOFF.metrics(), bot: { log: window.__bot.log, trainings: window.__bot.trainings, actions: window.__bot.actionsTaken },
   choices: window.TAKEOFF.state.choices, logTail: window.TAKEOFF.state.log.slice(-15).map(l => l.text) }));
 const snaps = await page.evaluate(() => window.__bot.snaps);
 report.final = last;
@@ -180,7 +185,9 @@ console.log("idle seconds:", m.idleSeconds, "longest idle:", m.longestIdle, "no-
 console.log("first choice at:", m.firstChoice.toFixed(0), "s · choices:", m.choices);
 console.log("reveals:", m.reveals.map(r => r.id + "@" + (r.t / 60).toFixed(1)).join(" "));
 console.log("max reveal gap:", Math.round(m.maxRevealGap), "s");
-console.log("trainings:", report.bot.trainings.map(x => (x.t / 60).toFixed(1)).join(" "));
+console.log("trainings started (min):", report.bot.trainings.map(x => (x.t / 60).toFixed(1)).join(" "));
+{ const starts = report.bot.trainings.map(x => x.t); const ends = report.trained.map(x => x[1]).sort((a, b) => a - b);
+  console.log("training durations (s):", ends.map((e, i) => Math.round(e - (starts[i] ?? e))).join(" ")); }
 console.log("models:", m.models.join(", "));
 console.log("errors:", errors.length ? errors.slice(0, 5) : "none");
 console.log("log tail:\n  " + report.logTail.join("\n  "));
