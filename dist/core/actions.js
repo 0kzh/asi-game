@@ -27,7 +27,7 @@ export const ACTIONS = [
     { id: 'price_down', free: true, visible: (s) => !!s.flags.priceRow && !s.flags.autoPricing, enabled: (s) => s.market.price > 0.01, run: eco.priceDown },
     { id: 'price_up', free: true, visible: (s) => !!s.flags.priceRow && !s.flags.autoPricing, enabled: () => true, run: eco.priceUp },
     { id: 'marketing', visible: (s) => !!s.flags.marketing && !s.flags.autoPricing, enabled: (s) => noModal(s) && eco.canBuyMarketing(s), run: eco.buyMarketing },
-    { id: 'deploy_agent', visible: (s) => !!s.flags.deploy, enabled: (s) => noModal(s) && eco.canDeployAgent(s), run: eco.deployAgent },
+    { id: 'deploy_agent', visible: (s) => !!s.flags.deploy && !s.flags.autoDeploy, enabled: (s) => noModal(s) && eco.canDeployAgent(s), run: eco.deployAgent },
     { id: 'buy_gpu', visible: (s) => !!s.flags.gpuRow, enabled: (s) => noModal(s) && eco.canBuyGpu(s), run: eco.buyGpu },
     { id: 'buy_energy', visible: () => true, enabled: (s) => noModal(s) && eco.canBuyEnergy(s), run: eco.buyEnergy },
     { id: 'hire_researcher', visible: (s) => !!s.flags.lab, enabled: (s) => noModal(s) && eco.freeHeadcount(s) >= 1, run: eco.hireResearcher },

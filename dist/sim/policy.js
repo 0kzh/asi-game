@@ -1,4 +1,4 @@
-import { agentCost, agentSlots, capacity, demand, energyPrice, freeHeadcount, gpuCost, marketingCost } from '../core/economy.js';
+import { agentCost, agentSlots, capacity, demand, energyPrice, freeHeadcount, gpuBlock, gpuCost, marketingCost, powerFactor } from '../core/economy.js';
 import { energyPerTask } from '../core/models.js';
 import { canAfford, projectCost, visibleProjects } from '../core/projects.js';
 import { currentScene, choiceEnabled } from '../core/events.js';
@@ -14,6 +14,67 @@ function normCost(s, c) {
     if (c.data)
         x += c.data / Math.max(1, s.res.data);
     return x;
+}
+/** Stage-3 choices that depend on the seed (odd/even), so the sim covers both sides. */
+function s3Choice(s, eventId, enabled) {
+    const odd = s.seed % 2 === 1;
+    switch (eventId) {
+        case 'defense': return odd ? 1 : 0; // accept on even seeds
+        case 'riots': return enabled(1) ? 1 : null; // lobby for ubi when affordable
+        case 'vote': return odd ? 0 : 1; // pause on odd seeds, race on even
+    }
+    return null;
+}
+/** Stage 3: projects on the way to the vote, in priority order. The first of them that is
+ *  visible but short of funds is the goal: nothing ranked below it may spend into its price.
+ *  Everything not listed is a side project, bought only with what is left over. */
+const S3_PRIORITY = [
+    'ai_rd2', 'stats', 'self_play', 'neuralese', 'legible_cot', 'train_agent3', 'release_agent3', 'defense',
+    'washington', 'sez', 'reactor', 'train_agent4', 'oversight_seat', 'ubi_lobby', 'interp1', 'monitors',
+    'gulf_dc', 'smr', 'interp2', 'safety_case', 'robots_pilot', 'align_research',
+];
+const S3_RANK = {};
+S3_PRIORITY.forEach((id, i) => { S3_RANK[id] = i; });
+function s3Rank(id) {
+    return S3_RANK[id] ?? S3_PRIORITY.length;
+}
+function s3Side(s, id) {
+    return s.stage === 3 && S3_RANK[id] === undefined;
+}
+/** Funds a stage-3 project still needs: its price plus any gpus its requirement is short of. */
+function s3FundsNeeded(s, p, cost) {
+    const short = Math.max(0, (p.req?.gpus ?? 0) - s.res.gpus);
+    return cost + short * (gpuCost(s) / Math.max(1, gpuBlock(s)));
+}
+/** Critical projects that are visible but not affordable, by rank, with the funds each needs. */
+function s3Pending(s) {
+    const out = [];
+    for (const p of visibleProjects(s)) {
+        if (s3Side(s, p.id) || skipProject(s, p.id) || canAfford(s, p))
+            continue;
+        const c = projectCost(s, p);
+        if (!c.funds && !p.req?.gpus)
+            continue;
+        out.push([s3Rank(p.id), s3FundsNeeded(s, p, c.funds ?? 0)]);
+    }
+    return out.sort((a, b) => a[0] - b[0]);
+}
+/** The stage-3 goal: [rank, funds held for it]. A goal more than five minutes of revenue away holds nothing. */
+function s3Goal(s) {
+    const first = s3Pending(s)[0];
+    if (!first || first[1] > s.res.funds + 300 * s.rates.revenuePerSec)
+        return [Infinity, 0];
+    return first;
+}
+/** Side projects wait until the funds would still cover the largest pending critical cost,
+ *  and keep a $10B war chest until agent-4 is trained (the next critical step is often not yet visible). */
+function s3SideHeld(s) {
+    return Math.max(s.flags['trained:agent4'] ? 0 : 1e10, ...s3Pending(s).map((x) => x[1]));
+}
+/** neuralese on even seeds, legible chain of thought on odd ones. */
+function skipProject(s, id) {
+    const odd = s.seed % 2 === 1;
+    return (id === 'neuralese' && odd) || (id === 'legible_cot' && !odd);
 }
 export class Policy {
     constructor(act) {
@@ -41,6 +102,8 @@ export class Policy {
         for (const p of visibleProjects(s)) {
             if (!(s.flags.projects || p.anytime) || canAfford(s, p))
                 continue;
+            if (s3Side(s, p.id) || skipProject(s, p.id))
+                continue;
             const c = projectCost(s, p);
             if (!c.funds)
                 continue;
@@ -67,7 +130,9 @@ export class Policy {
         // Modals: first available choice; training budget 50% then start.
         if (s.modal?.kind === 'choice') {
             const cur = currentScene(s);
-            const idx = cur ? cur.scene.choices.findIndex((c) => choiceEnabled(s, c)) : 0;
+            const enabled = (i) => !!cur && !!cur.scene.choices[i] && choiceEnabled(s, cur.scene.choices[i]);
+            const pref = cur ? s3Choice(s, cur.ev.id, enabled) : null;
+            const idx = pref !== null && enabled(pref) ? pref : cur ? cur.scene.choices.findIndex((c) => choiceEnabled(s, c)) : 0;
             act(`choice:${Math.max(0, idx)}`);
         }
         if (s.modal?.kind === 'training') {
@@ -81,18 +146,29 @@ export class Policy {
         // Release immediately.
         if (s.training?.phase === 'done')
             act('release');
-        // Energy: keep at least 15 s of consumption.
+        // Energy: keep at least 15 s of consumption. From stage 3 the auto-buyer's blocks are sized
+        // to the load; 500 kWh by hand is a rounding error there and each purchase raises the price.
         const use = s.rates.energyPerSec + (s.res.agents < 3 ? 4 * energyPerTask(s) : 0);
-        for (let i = 0; i < 20 && s.res.energy < use * 15 && s.res.funds >= energyPrice(s); i++) {
+        const manualEnergy = !(s.flags.stage3 && s.energyMkt.autoBuy);
+        for (let i = 0; manualEnergy && i < 20 && s.res.energy < use * 15 && s.res.funds >= energyPrice(s); i++) {
             if (!act('buy_energy'))
                 break;
         }
-        // Cheapest affordable projects, cheapest first, while any is affordable.
+        // Cheapest affordable projects, cheapest first, while any is affordable. In stage 3 they go
+        // in priority order instead, and nothing ranked below the goal may spend into its price.
         for (let i = 0; i < 10; i++) {
-            const affordable = visibleProjects(s).filter((p) => canAfford(s, p) && (s.flags.projects || p.anytime));
+            const s3 = s.stage === 3;
+            const [goalRank, held] = s3 ? s3Goal(s) : [Infinity, 0];
+            const sideHeld = s3 ? s3SideHeld(s) : 0;
+            const affordable = visibleProjects(s).filter((p) => canAfford(s, p) && (s.flags.projects || p.anytime) && !skipProject(s, p.id)
+                && !(s3 && (projectCost(s, p).funds ?? 0) > 0 && s3Rank(p.id) > goalRank && s.res.funds - (projectCost(s, p).funds ?? 0) < held)
+                && !(s3 && (projectCost(s, p).funds ?? 0) > 0 && s3Side(s, p.id) && s.res.funds - (projectCost(s, p).funds ?? 0) < sideHeld));
             if (!affordable.length)
                 break;
-            affordable.sort((a, b) => normCost(s, projectCost(s, a)) - normCost(s, projectCost(s, b)));
+            if (s3)
+                affordable.sort((a, b) => s3Rank(a.id) - s3Rank(b.id) || normCost(s, projectCost(s, a)) - normCost(s, projectCost(s, b)));
+            else
+                affordable.sort((a, b) => normCost(s, projectCost(s, a)) - normCost(s, projectCost(s, b)));
             if (!act(`project:${affordable[0].id}`))
                 break;
             if (s.modal)
@@ -100,11 +176,13 @@ export class Policy {
         }
         // Saving: the cheapest visible project whose only missing cost is funds (gpus may also be
         // missing — they are bought below) reserves its price, if reachable within 3 minutes.
-        const reserve = this.reserve(s);
+        // In stage 3 the goal's price is held instead.
+        const reserve = s.stage === 3 ? s3Goal(s)[1] : this.reserve(s);
         // GPUs: when the agents are at the cap, or a visible project needs more.
         const needGpus = Math.max(0, ...visibleProjects(s).map((p) => p.req?.gpus ?? 0));
         for (let i = 0; i < 10; i++) {
-            const atCap = s.res.agents >= agentSlots(s);
+            // From stage 3 the copies deploy themselves; more gpus only help while power is not the ceiling.
+            const atCap = s.flags.autoDeploy ? powerFactor(s) >= 0.999 : s.res.agents >= agentSlots(s);
             const forGoal = s.res.gpus < needGpus;
             if (!(atCap || forGoal) || s.res.funds - (forGoal ? 0 : reserve) < gpuCost(s))
                 break;

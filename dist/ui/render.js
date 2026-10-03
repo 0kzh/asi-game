@@ -13,12 +13,10 @@ import * as politics from './panels/politics.js';
 import * as stats from './panels/stats.js';
 import * as modal from './panels/modal.js';
 import * as ending from './panels/ending.js';
-import { h, setText } from './dom.js';
-const PANELS = [header, logPanel, stores, operations, compute, allocation, lab, model, chart, projects, politics, stats, modal, ending];
-let flashEl;
+import * as flash from './panels/flash.js';
+const PANELS = [header, logPanel, stores, operations, compute, allocation, lab, model, chart, projects, politics, stats, modal, ending, flash];
 let lastStage = 0;
 let lastState = null;
-let flashTimer = null;
 export function mountUI() {
     const byId = (id) => {
         const el = document.getElementById(id);
@@ -42,8 +40,7 @@ export function mountUI() {
     politics.mount(col3);
     modal.mount(byId('modal'));
     ending.mount(document.body);
-    flashEl = byId('flash');
-    flashEl.append(h('p', {}));
+    flash.mount(byId('flash'));
 }
 /** Immediate-mode render: every panel re-asserts visibility, text and disabled from state. */
 export function render(s) {
@@ -55,20 +52,13 @@ export function render(s) {
         lastStage = s.stage;
     }
     if (s.stage > lastStage) {
+        // A stage's own `flash` text; a stage whose enter() sets s.flash leaves `flash` unset.
         const text = REG.stages[s.stage]?.flash;
-        if (text)
-            stageFlash(text);
+        if (text && !s.flash)
+            flash.play(text);
     }
     lastStage = s.stage;
     for (const p of PANELS)
         p.update(s);
-}
-/** The one black full-screen flash per stage boundary (Paperclips' HypnoDrone banner), 3.8 s. */
-function stageFlash(text) {
-    setText(flashEl.firstElementChild, text);
-    flashEl.hidden = false;
-    if (flashTimer !== null)
-        clearTimeout(flashTimer);
-    flashTimer = window.setTimeout(() => { flashEl.hidden = true; flashTimer = null; }, 3800);
 }
 //# sourceMappingURL=render.js.map

@@ -15,10 +15,10 @@ export function newState(seed = 1) {
             tasks: 0, funds: 0, energy: 500, agents: 0, gpus: 1, researchers: 0, engineers: 0,
             headcount: 0, research: 0, insight: 0, data: 0, robots: 0,
         },
-        caps: { gpus: 50, researchCap: 150, researchBonus: 0, gpuCurveStart: 0, powerGw: 0 },
+        caps: { gpus: 50, researchCap: 150, researchBonus: 0, gpuCurveStart: 0, powerGw: 0.5 },
         mods: {
             speedMult: 1, efficiencyMult: 1, energyEffMult: 1, demandMult: 1, refPriceMult: 1,
-            gpuPriceMult: 1, energyPriceMult: 1, energyDriftMult: 1,
+            gpuPriceMult: 1, energyPriceMult: 1, energyDriftMult: 1, rdMult: 1, capBonus: 0, findingsMult: 1,
         },
         model: {
             key: 'agent0', gen: 0, name: 'agent-0', capability: 1.2, alignment: 50, interp: 1,
@@ -29,11 +29,12 @@ export function newState(seed = 1) {
         alloc: { deploy: 1, research: 0, safety: 0 },
         market: { price: 0.25, marketing: 0, productMult: 1, rivalShare: 0, lastRevenue: 0, waitlist: 0, lifetimeRevenue: 0 },
         energyMkt: { price: 120, base: 120, purchases: 0, autoBuy: false, generation: 0, spend: 0, block: 500, autoBlock: 500, decayTimer: 0 },
-        pol: { gov: 0, opinion: 50, security: 1, jobsDisplaced: 0, ubi: false, riots: false, dpa: false, oversightSeat: false },
+        pol: { gov: 0, opinion: 50, security: 1, jobsDisplaced: 0, ubi: false, riots: false, dpa: false, oversightSeat: false, jobsMult: 1, riotCount: 0, riotJobs: 5 },
         rival: { name: 'deepcent', capability: 1.0, released: 0 },
         projects: {},
         projectOrder: [],
-        flags: {},
+        // Stage-1 controls that stage 3 deletes (operations panel): true until then.
+        flags: { manualTask: true, priceControl: true, marketingControl: true },
         timed: {},
         log: [],
         modal: null,
@@ -52,6 +53,7 @@ export function newState(seed = 1) {
         },
         chart: [],
         chartMarks: [],
+        flash: '',
     };
     s.ambientAt = between(s, 45, 90);
     return s;
