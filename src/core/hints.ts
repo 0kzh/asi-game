@@ -9,7 +9,7 @@ export function computeHint(s: State): string {
   if (s.flags.research && !s.flags.noResearchCap && r.researchers > 0 && r.research >= s.caps.researchCap - 1e-9)
     return 'research is capped. spend it, or hire engineers.';
   if (s.counters.overSupplySeconds >= 20) return 'demand is the bottleneck. lower the price or market.';
-  if (r.agents > 0 && r.agents >= agentSlots(s)) return 'the agents are out of gpus.';
+  if (!s.flags.autoDeploy && r.agents > 0 && r.agents >= agentSlots(s)) return 'the agents are out of gpus.';
   return '';
 }
 
