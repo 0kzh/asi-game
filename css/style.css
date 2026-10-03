@@ -228,9 +228,15 @@ body.dark #eventWrap { background: rgba(0,0,0,0.6); }
 .devBtn { font: 12px Menlo, Consolas, monospace; margin: 1px 2px; cursor: pointer; }
 .devMet { margin-top: 4px; color: #333; }
 
+#logMini { display: none; }
+.btn:focus-visible, button.project:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
 /* ---------- narrow screens ---------- */
 @media (max-width: 1000px) {
   #wrap { grid-template-columns: 1fr; }
+  #logMini { display: block; margin-top: 8px; border-left: 2px solid var(--soft); padding-left: 8px; font-size: 15px; }
+  #logMini div:nth-child(2) { opacity: 0.6; }
+  #logMini div:nth-child(3) { opacity: 0.35; }
   #logCol { height: 190px; order: 2; }
   #main { order: 1; }
   #cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }

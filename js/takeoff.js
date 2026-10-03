@@ -146,7 +146,7 @@ const GENS = [
         blurb: "a small language model. 124 million parameters.",
         ready: "Agent-0 finishes training. it can almost finish a sentence.",
         release: "Agent-0 is live. strangers on the internet ask it questions." },
-    { id: "a1", name: "Agent-1", cap: 58, train: 2400, data: 6e8, rate: 2, gpc: 1, price0: 1.2, demand0: 45,
+    { id: "a1", name: "Agent-1", cap: 58, train: 1500, data: 6e8, rate: 2, gpc: 1, price0: 1.2, demand0: 45,
         blurb: "a real model. it writes code, badly.",
         ready: "Agent-1 is done. it writes code. most of it compiles.",
         release: "Agent-1 is released. developers start paying for it." },
@@ -158,11 +158,11 @@ const GENS = [
         blurb: "trained to act, not just answer. it can use a computer.",
         ready: "Agent-2 books its own flights in testing. nobody asked it to.",
         release: "Agent-2 ships as an agent. it does the work, not just the talking." },
-    { id: "a25", name: "Agent-2.5", cap: 145, train: 6e6, data: 4e11, rate: 8, gpc: 3, price0: 12, demand0: 12000,
+    { id: "a25", name: "Agent-2.5", cap: 145, train: 1.1e7, data: 4e11, rate: 8, gpc: 3, price0: 12, demand0: 12000,
         blurb: "runs for days without supervision. learns on the job.",
         ready: "Agent-2.5 finishes a week-long project in an afternoon.",
         release: "Agent-2.5 ships. remote work quietly becomes remote compute." },
-    { id: "a3", name: "Agent-3", cap: 250, train: 5e7, data: 3e12, rate: 15, gpc: 4, price0: 25, demand0: 80000,
+    { id: "a3", name: "Agent-3", cap: 250, train: 9e7, data: 3e12, rate: 15, gpc: 4, price0: 25, demand0: 80000,
         blurb: "a superhuman coder. the last model humans will design.",
         ready: "Agent-3 is finished. it is better at your job than you are.",
         release: "Agent-3 ships. the best engineers in the world are now worse than a product." },
@@ -185,11 +185,11 @@ const SAFER_GENS = [
         blurb: "Agent-3's capabilities, rebuilt so you can read every thought.",
         ready: "Safer-1 is done. you can read every word it thinks. it is a little dull.",
         release: "Safer-1 is deployed. it says what it thinks." },
-    { id: "s2", name: "Safer-2", cap: 900, train: 8e8, data: 6e13, rate: 90, gpc: 7, price0: 80, demand0: 1.5e+06,
+    { id: "s2", name: "Safer-2", cap: 900, train: 1.5e9, data: 6e13, rate: 90, gpc: 7, price0: 80, demand0: 1.5e+06,
         blurb: "a superhuman researcher you can audit.",
         ready: "Safer-2 is finished. its plans read like proofs.",
         release: "Safer-2 is deployed under the Oversight Committee." },
-    { id: "s3", name: "Safer-3", cap: 4000, train: 4e9, data: 3e14, rate: 400, gpc: 9, price0: 160, demand0: 1e+07,
+    { id: "s3", name: "Safer-3", cap: 4000, train: 9e9, data: 3e14, rate: 400, gpc: 9, price0: 160, demand0: 1e+07,
         blurb: "aligned superintelligence. if you did this right.",
         ready: "Safer-3 is finished. it asks what you want. it waits for the answer.",
         release: "Safer-3 is deployed. the world's problems start getting shorter." },
@@ -1740,7 +1740,7 @@ const EVENTS = [
     // ------------------------------------------------ STAGE 1
     {
         id: "robots", title: "Please Do Not Crawl", notice: "a website asks not to be scraped",
-        when: () => !!S.beats.firstScrape && S.data >= 4e6 && S.t >= 75,
+        when: () => !!S.beats.firstScrape && S.data >= 4e6 && S.t >= 40,
         scenes: {
             start: {
                 text: ["a site you were about to scrape has a small file at the top. it says please don't.",
@@ -3174,10 +3174,12 @@ const BEATS = [
     { id: "gestalt1", when: () => S.month >= 3.6, run: () => notify("Gestalt publishes a paper about how dangerous all this is. then they raise four billion dollars") },
     { id: "fullHands", when: () => S.deployed >= 0 && rateOf(deployed()) * copies() > 3 && S.tasksManual > 0, run: () => notify("Agent-0 completes more tasks than you do now") },
     { id: "late1", when: () => S.stage === 1 && S.month >= 5, run: () => notify("everyone you know is talking about AI. half of them are scared. half of them are building something") },
+    { id: "raceEarly", when: () => released("a15") || S.month >= 4, run: () => { reveal("race"); notify("someone makes a chart of every lab's best model. you're on it"); } },
+    { id: "govEarly", when: () => S.stage === 1 && (S.month >= 4.5 || S.round >= 4), run: () => { reveal("gov"); notify("a staffer from the Senate commerce committee emails. she'd like to 'get ahead of this'"); } },
+    { id: "publicEarly", when: () => S.jobs > 1e5, run: () => { reveal("public"); notify("the first newspaper column about AI taking jobs that is not a joke"); } },
     // ---- stage 2 ----
     { id: "s2stats", when: () => S.stage >= 2 && S.t > (S.metrics.stageTimes[1] || 1e12) + 150, run: () => { reveal("stats"); } },
-    { id: "s2gov", when: () => S.stage >= 2 && (S.t > (S.metrics.stageTimes[1] || 1e12) + 60), run: () => { reveal("gov"); notify("a staffer from the Senate commerce committee emails. she'd like to 'get ahead of this'"); } },
-    { id: "s2public", when: () => S.stage >= 2 && S.jobs > 2e5, run: () => { reveal("public"); notify("the first newspaper column about AI taking jobs that is not a joke"); } },
+    { id: "s2gov", when: () => S.stage >= 2 && !S.beats.govEarly, run: () => { reveal("gov"); } },
     { id: "powerShort", when: () => S.stage >= 2 && perf() < 0.95, run: () => { notify("the GPUs are throttling. there isn't enough power", "warn"); } },
     { id: "chipsShort", when: () => S.stage >= 2 && S.chipStock < 1 && gpuRoom() > 100, run: () => notify("the foundries are sold out. every chip for the next year is spoken for") },
     { id: "titan2", when: () => S.month >= 11, run: () => notify("Titan's newest model is three weeks behind yours. their CEO says it's three weeks ahead") },
@@ -4007,6 +4009,12 @@ function txt(parent, f, vis, cls = "row") {
 }
 function btn(parent, o) {
     const b = div(parent, "btn" + (o.cls ? " " + o.cls : ""));
+    b.setAttribute("role", "button");
+    b.tabIndex = 0;
+    b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        b.click();
+    } });
     const cd = div(b, "cd");
     const label = el("span", "lbl");
     b.appendChild(label);
@@ -4306,6 +4314,7 @@ const PANELS = [
             btn(r, { label: () => "hire safety (" + S.safety + ")", onClick: () => hire("safety"), visible: () => flag("safetyUnlocked"), enabled: () => S.funds >= hireCost("safety"), buy: true,
                 tip: () => fmtMoney(hireCost("safety")) + " · alignment research" });
             bar(b, () => S.rp / rpCap(), () => "research: " + fmt(S.rp) + " / " + fmt(rpCap()) + " (" + rate(rpRate()) + ")");
+            txt(b, () => { const p = capBlockedProject(); return p ? "the research cap is too low for <i>" + p + "</i>." + (flag("experiments") ? " put more compute on experiments." : " the researchers need an experiment budget.") : ""; }, () => !!capBlockedProject(), "row warn");
             txt(b, () => "insights: <b>" + fmt(S.insight, 1) + "</b> <span class='dim'>(" + rate(insightRate()) + (insightCapped() ? ", research is full ×6" : ", ×6 while research is full") + ")</span>", () => flag("insights"));
             txt(b, () => "AI-assisted research: <b>" + aiAssist().toFixed(1) + "x</b> <span class='dim'>(copilots)</span>", () => S.stage === 2 && aiAssist() > 1.05);
             txt(b, () => "AI research multiplier: <b>" + rdMultiplier().toFixed(1) + "x</b>", () => S.internalModel >= 0);
@@ -4520,6 +4529,16 @@ function updateUI() {
     renderStats();
     document.body.classList.toggle("dark", S.stage >= 5 && (flag("doom") || flag("humansFalling")));
 }
+/** A visible project whose research price is above the cap (Paperclips: an ops project above your memory). */
+function capBlockedProject() {
+    const cap = rpCap();
+    for (const p of shownProjects()) {
+        const c = p.cost();
+        if (c.rp && c.rp > cap)
+            return p.title;
+    }
+    return "";
+}
 function fmtBig(n) {
     if (n < 1e15)
         return Math.floor(n).toLocaleString("en-US");
@@ -4558,6 +4577,10 @@ function renderLog() {
         html.push("<div class='note " + l.cls + (k === 0 ? " fresh" : "") + "' style='opacity:" + Math.max(0.08, 1 - k * 0.055).toFixed(2) + "'>" + escapeHtml(l.text) + "</div>");
     }
     box.innerHTML = html.join("");
+    const mini = [];
+    for (let i = n - 1; i >= 0 && mini.length < 3; i--)
+        mini.push("<div>" + escapeHtml(S.log[i].text) + "</div>");
+    $("logMini").innerHTML = mini.join("");
 }
 function escapeHtml(s) {
     return s.replace(/[&<>]/g, c => c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;");
@@ -4584,6 +4607,12 @@ function renderEvent() {
         eventChoiceBtns = [];
         sc.choices.forEach((ch, i) => {
             const b = div(bx, "btn evbtn");
+            b.setAttribute("role", "button");
+            b.tabIndex = 0;
+            b.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") {
+                ev.preventDefault();
+                b.click();
+            } });
             b.appendChild(el("span", "lbl", ch.text));
             const tip = typeof ch.tip === "function" ? ch.tip() : ch.tip;
             const costS = ch.cost ? costText(ch.cost()) : "";

@@ -43,11 +43,13 @@ const BEATS: Beat[] = [
   { id: "gestalt1", when: () => S.month >= 3.6, run: () => notify("Gestalt publishes a paper about how dangerous all this is. then they raise four billion dollars") },
   { id: "fullHands", when: () => S.deployed >= 0 && rateOf(deployed()) * copies() > 3 && S.tasksManual > 0, run: () => notify("Agent-0 completes more tasks than you do now") },
   { id: "late1", when: () => S.stage === 1 && S.month >= 5, run: () => notify("everyone you know is talking about AI. half of them are scared. half of them are building something") },
+  { id: "raceEarly", when: () => released("a15") || S.month >= 4, run: () => { reveal("race"); notify("someone makes a chart of every lab's best model. you're on it"); } },
+  { id: "govEarly", when: () => S.stage === 1 && (S.month >= 4.5 || S.round >= 4), run: () => { reveal("gov"); notify("a staffer from the Senate commerce committee emails. she'd like to 'get ahead of this'"); } },
+  { id: "publicEarly", when: () => S.jobs > 1e5, run: () => { reveal("public"); notify("the first newspaper column about AI taking jobs that is not a joke"); } },
 
   // ---- stage 2 ----
   { id: "s2stats", when: () => S.stage >= 2 && S.t > (S.metrics.stageTimes[1] || 1e12) + 150, run: () => { reveal("stats"); } },
-  { id: "s2gov", when: () => S.stage >= 2 && (S.t > (S.metrics.stageTimes[1] || 1e12) + 60), run: () => { reveal("gov"); notify("a staffer from the Senate commerce committee emails. she'd like to 'get ahead of this'"); } },
-  { id: "s2public", when: () => S.stage >= 2 && S.jobs > 2e5, run: () => { reveal("public"); notify("the first newspaper column about AI taking jobs that is not a joke"); } },
+  { id: "s2gov", when: () => S.stage >= 2 && !S.beats.govEarly, run: () => { reveal("gov"); } },
   { id: "powerShort", when: () => S.stage >= 2 && perf() < 0.95, run: () => { notify("the GPUs are throttling. there isn't enough power", "warn"); } },
   { id: "chipsShort", when: () => S.stage >= 2 && S.chipStock < 1 && gpuRoom() > 100, run: () => notify("the foundries are sold out. every chip for the next year is spoken for") },
   { id: "titan2", when: () => S.month >= 11, run: () => notify("Titan's newest model is three weeks behind yours. their CEO says it's three weeks ahead") },

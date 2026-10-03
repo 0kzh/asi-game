@@ -36,7 +36,7 @@ const EVENTS: GameEvent[] = [
   // ------------------------------------------------ STAGE 1
   {
     id: "robots", title: "Please Do Not Crawl", notice: "a website asks not to be scraped",
-    when: () => !!S.beats.firstScrape && S.data >= 4e6 && S.t >= 75,
+    when: () => !!S.beats.firstScrape && S.data >= 4e6 && S.t >= 40,
     scenes: {
       start: {
         text: ["a site you were about to scrape has a small file at the top. it says please don't.",

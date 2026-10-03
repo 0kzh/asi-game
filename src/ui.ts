@@ -51,6 +51,9 @@ interface BtnOpts {
 
 function btn(parent: HTMLElement, o: BtnOpts): HTMLDivElement {
   const b = div(parent, "btn" + (o.cls ? " " + o.cls : ""));
+  b.setAttribute("role", "button");
+  b.tabIndex = 0;
+  b.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); b.click(); } });
   const cd = div(b, "cd");
   const label = el("span", "lbl");
   b.appendChild(label);
@@ -336,6 +339,8 @@ const PANELS: PanelDef[] = [
       btn(r, { label: () => "hire safety (" + S.safety + ")", onClick: () => hire("safety"), visible: () => flag("safetyUnlocked"), enabled: () => S.funds >= hireCost("safety"), buy: true,
         tip: () => fmtMoney(hireCost("safety")) + " · alignment research" });
       bar(b, () => S.rp / rpCap(), () => "research: " + fmt(S.rp) + " / " + fmt(rpCap()) + " (" + rate(rpRate()) + ")");
+      txt(b, () => { const p = capBlockedProject(); return p ? "the research cap is too low for <i>" + p + "</i>." + (flag("experiments") ? " put more compute on experiments." : " the researchers need an experiment budget.") : ""; },
+        () => !!capBlockedProject(), "row warn");
       txt(b, () => "insights: <b>" + fmt(S.insight, 1) + "</b> <span class='dim'>(" + rate(insightRate()) + (insightCapped() ? ", research is full ×6" : ", ×6 while research is full") + ")</span>", () => flag("insights"));
       txt(b, () => "AI-assisted research: <b>" + aiAssist().toFixed(1) + "x</b> <span class='dim'>(copilots)</span>", () => S.stage === 2 && aiAssist() > 1.05);
       txt(b, () => "AI research multiplier: <b>" + rdMultiplier().toFixed(1) + "x</b>", () => S.internalModel >= 0);
@@ -529,6 +534,13 @@ function updateUI(): void {
   document.body.classList.toggle("dark", S.stage >= 5 && (flag("doom") || flag("humansFalling")));
 }
 
+/** A visible project whose research price is above the cap (Paperclips: an ops project above your memory). */
+function capBlockedProject(): string {
+  const cap = rpCap();
+  for (const p of shownProjects()) { const c = p.cost(); if (c.rp && c.rp > cap) return p.title; }
+  return "";
+}
+
 function fmtBig(n: number): string {
   if (n < 1e15) return Math.floor(n).toLocaleString("en-US");
   return fmt(n);
@@ -562,6 +574,9 @@ function renderLog(): void {
     html.push("<div class='note " + l.cls + (k === 0 ? " fresh" : "") + "' style='opacity:" + Math.max(0.08, 1 - k * 0.055).toFixed(2) + "'>" + escapeHtml(l.text) + "</div>");
   }
   box.innerHTML = html.join("");
+  const mini: string[] = [];
+  for (let i = n - 1; i >= 0 && mini.length < 3; i--) mini.push("<div>" + escapeHtml(S.log[i].text) + "</div>");
+  $("logMini").innerHTML = mini.join("");
 }
 
 function escapeHtml(s: string): string {
@@ -586,6 +601,9 @@ function renderEvent(): void {
     eventChoiceBtns = [];
     sc.choices.forEach((ch, i) => {
       const b = div(bx, "btn evbtn");
+      b.setAttribute("role", "button");
+      b.tabIndex = 0;
+      b.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); b.click(); } });
       b.appendChild(el("span", "lbl", ch.text));
       const tip = typeof ch.tip === "function" ? ch.tip() : ch.tip;
       const costS = ch.cost ? costText(ch.cost()) : "";
