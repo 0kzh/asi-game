@@ -303,7 +303,7 @@ function flag(name) { return !!S.flags[name]; }
 const MECHANIC_FLAGS = ["crawlers", "researchUnlocked", "experiments", "insights", "autoPriceUnlocked", "evals", "datasets_on", "safetyUnlocked",
     "parallel", "userData", "autoBuyUnlocked", "campusUnlocked", "gigaUnlocked", "smrUnlocked", "lobbyUnlocked", "prUnlocked", "synth",
     "constructionCrews", "monitors", "honeypots", "cyberDefense", "robotics", "robotOpt", "fusion", "ubiUnlocked", "space", "orbitalOn",
-    "asteroids", "treatyTalks", "automation", "officeMoved", "redteam"];
+    "asteroids", "treatyTalks", "automation", "officeMoved", "redteamVerb"];
 function setFlag(name, v = 1) {
     if (!S.flags[name] && MECHANIC_FLAGS.indexOf(name) >= 0)
         S.metrics.reveals.push({ id: "mech:" + name, t: S.t });
@@ -1589,7 +1589,7 @@ const PROJECTS = [
     {
         id: "modelorg", title: "Model Organisms", desc: "Deliberately build a small misaligned model, so you know what one looks like. (alignment +, unlocks red-teaming)",
         cost: () => ({ rp: 2e5 }), trigger: () => s3For(300), stages: [3, 4],
-        effect: () => { S.alignRes += 600; setFlag("modelOrgs"); setFlag("redteam"); }, msg: "the little misaligned model lies about its test results within a day. now you know what to look for. (you can red-team by hand)",
+        effect: () => { S.alignRes += 600; setFlag("modelOrgs"); setFlag("redteamVerb"); }, msg: "the little misaligned model lies about its test results within a day. now you know what to look for. (you can red-team by hand)",
     },
     {
         id: "synthenv", title: "Synthetic Research Environments", desc: "Millions of simulated labs where Agent-3 can fail safely. (research cap +, AI research +20%)",
@@ -4223,7 +4223,10 @@ function allocRow(parent, key, label, vis, tip) {
         else {
             setText(n, S.alloc[key] + "%");
             const used = sp[key];
-            setText(sub, key === "train" && !S.training ? "idle" : fmtShort(used));
+            // Reserved but unused (no training run, no crisis): it serves customers meanwhile, so dim it.
+            const idle = (key === "train" && !S.training) || (key === "defense" && !S.crisis);
+            r.classList.toggle("idle", idle);
+            setText(sub, idle ? "idle" : fmtShort(used));
         }
         setText(tt, tip());
     });
@@ -4414,7 +4417,7 @@ const PANELS = [
             const al = div(b, "allocs");
             txt(al, () => "<b>allocation</b>", () => rv("alloc"), "row sub");
             allocRow(al, "serve", "serving customers", () => rv("alloc") && S.deployed >= 0, () => "everything not allocated elsewhere answers customers");
-            allocRow(al, "train", "training", () => rv("alloc"), () => "trains the next model (only while a run is in progress)");
+            allocRow(al, "train", "training", () => rv("alloc"), () => S.training ? "trains the next model" : "reserved for the next training run. until one starts, it serves customers");
             allocRow(al, "synth", "synthetic data", () => rv("alloc") && flag("synth"), () => "the deployed model writes training data: " + rate(synthRate()) + " tokens");
             allocRow(al, "research", "AI research", () => rv("alloc") && flag("automation"), () => "copies of the internal model doing research: " + rate(aiRP()) + " research");
             allocRow(al, "monitor", "monitoring & alignment", () => rv("alloc") && flag("monitors"), () => "older models watch newer ones. ~4% of compute covers everything");
@@ -4422,7 +4425,7 @@ const PANELS = [
         },
     },
     {
-        id: "data", title: "Data", visible: () => (flag("crawlers") || flag("datasets_on") || S.stage >= 2) && S.stage < 4,
+        id: "data", title: "Data", visible: () => (flag("crawlers") || flag("datasets_on") || S.stage >= 2) && (S.stage < 3 || (S.stage === 3 && S.webLeft > WEB_TOTAL * 0.01)),
         build: b => {
             txt(b, () => "incoming: " + rate(dataRate(), " tokens/s"));
             txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL, S.webLeft < WEB_TOTAL * 0.1 ? 1 : 0) + (S.webLeft < WEB_TOTAL * 0.25 ? " <span class='warn'>· the data wall</span>" : ""), () => flag("crawlers"), "row dim");
@@ -4505,7 +4508,7 @@ const PANELS = [
             bar(b, () => alignConfidence(), () => "alignment confidence: " + fmtPct(alignConfidence()), undefined, "conf");
             bar(b, () => S.alignRes / alignNeed(frontierCap()), () => "alignment research: " + fmtPct(Math.min(9.99, S.alignRes / alignNeed(frontierCap()))) + " of what the frontier needs");
             txt(b, () => "warning signs: " + Math.floor(S.alarm), () => S.alarm >= 1, "row warn");
-            btn(b, { label: "red-team the frontier model", onClick: redTeam, cooldown: "redteam", cdMax: () => REDTEAM_CD, visible: () => flag("redteam") && !S.ending,
+            btn(b, { label: "red-team the frontier model", onClick: redTeam, cooldown: "redteam", cdMax: () => REDTEAM_CD, visible: () => flag("redteamVerb") && !S.ending,
                 tip: () => "+" + fmt(redTeamGain()) + " alignment research · may surface warning signs" });
             txt(b, () => "the confidence number is computed by the models you're testing.", () => S.neuralese || legibility() < 0.4, "row dim");
         },

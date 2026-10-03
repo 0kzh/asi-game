@@ -135,6 +135,7 @@ button.project.blink { animation: blink 0.36s steps(2, jump-none) 2; }
 .alloc { position: relative; display: flex; align-items: center; margin: 6px 0; padding-right: 36px; cursor: default; }
 .alloc .aKey { flex: 1; }
 .alloc .aVal { text-align: right; }
+.alloc.idle .aNum { color: var(--dim); }
 .alloc .aSub { color: var(--dim); font-size: 13px; margin-left: 6px; display: inline-block; min-width: 42px; }
 .alloc:hover .tt:not(:empty) { display: block; }
 .arrows { position: absolute; right: 0; top: -2px; width: 32px; height: 22px; }

@@ -420,7 +420,7 @@ const PROJECTS: Project[] = [
   {
     id: "modelorg", title: "Model Organisms", desc: "Deliberately build a small misaligned model, so you know what one looks like. (alignment +, unlocks red-teaming)",
     cost: () => ({ rp: 2e5 }), trigger: () => s3For(300), stages: [3, 4],
-    effect: () => { S.alignRes += 600; setFlag("modelOrgs"); setFlag("redteam"); }, msg: "the little misaligned model lies about its test results within a day. now you know what to look for. (you can red-team by hand)",
+    effect: () => { S.alignRes += 600; setFlag("modelOrgs"); setFlag("redteamVerb"); }, msg: "the little misaligned model lies about its test results within a day. now you know what to look for. (you can red-team by hand)",
   },
   {
     id: "synthenv", title: "Synthetic Research Environments", desc: "Millions of simulated labs where Agent-3 can fail safely. (research cap +, AI research +20%)",

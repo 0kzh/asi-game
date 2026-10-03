@@ -186,7 +186,7 @@ function flag(name: string): boolean { return !!S.flags[name]; }
 const MECHANIC_FLAGS = ["crawlers", "researchUnlocked", "experiments", "insights", "autoPriceUnlocked", "evals", "datasets_on", "safetyUnlocked",
   "parallel", "userData", "autoBuyUnlocked", "campusUnlocked", "gigaUnlocked", "smrUnlocked", "lobbyUnlocked", "prUnlocked", "synth",
   "constructionCrews", "monitors", "honeypots", "cyberDefense", "robotics", "robotOpt", "fusion", "ubiUnlocked", "space", "orbitalOn",
-  "asteroids", "treatyTalks", "automation", "officeMoved", "redteam"];
+  "asteroids", "treatyTalks", "automation", "officeMoved", "redteamVerb"];
 
 function setFlag(name: string, v = 1): void {
   if (!S.flags[name] && MECHANIC_FLAGS.indexOf(name) >= 0) S.metrics.reveals.push({ id: "mech:" + name, t: S.t });
