@@ -63,8 +63,39 @@ export function agentSlots(s: State): number {
   return Math.floor(s.res.gpus * agentsPerGpu(s) + 1e-9);
 }
 
-export function powerFactor(_s: State): number {
-  return 1; // S3+: min(1, powerCapacityGW / powerDemandGW)
+// ------------------------------------------------------------------ power (S3+, design §3.5)
+
+/** GW drawn per kWh/s of task energy. The literal conversion is 3.6e-3; it is an abstract,
+ *  scaled figure (1/100) so the ceiling binds near the 50,000-gpu cap and again after the zone:
+ *  ~2M tasks/s at agent-3's ~0.3 kWh/task draws ~21 GW (docs/tuning-log.md, stage 3). */
+export const POWER_GW_PER_KWH_S = 3.6e-3 / 100;
+
+/** Deployment capacity (tasks/s) before the power ceiling. */
+export function rawCapacity(s: State): number {
+  return Math.min(s.res.agents, agentSlots(s)) * agentSpeed(s) * s.alloc.deploy * trainingFactor(s);
+}
+
+/** Power drawn (GW) at `tps` tasks per second: tps × energyPerTask × the scaled conversion. */
+export function powerGwAt(s: State, tps: number): number {
+  return tps * energyPerTask(s) * POWER_GW_PER_KWH_S;
+}
+
+/** Usable power capacity (GW): caps.powerGw, ×0.7 while a strike has cut it (timed.powerCut). */
+export function powerCapacityGw(s: State): number {
+  return s.caps.powerGw * ((s.timed.powerCut ?? 0) > s.t ? 0.7 : 1);
+}
+
+/** Power used now (GW), from the agents' current tasks/s. */
+export function powerUsedGw(s: State): number {
+  return powerGwAt(s, s.rates.agentTasksPerSec);
+}
+
+/** min(1, capacity GW / demand GW), where demand is what every deployed agent would draw. 1 before S3. */
+export function powerFactor(s: State): number {
+  if (!s.flags.stage3) return 1;
+  const need = powerGwAt(s, rawCapacity(s));
+  const cap = powerCapacityGw(s);
+  return need <= cap ? 1 : Math.max(0, cap / need);
 }
 
 /** Share of deployment capacity left after an active training run takes its budget. */
@@ -74,13 +105,15 @@ export function trainingFactor(s: State): number {
 }
 
 export function capacity(s: State): number {
-  return (
-    Math.min(s.res.agents, agentSlots(s)) *
-    agentSpeed(s) *
-    s.alloc.deploy *
-    powerFactor(s) *
-    trainingFactor(s)
-  );
+  return rawCapacity(s) * powerFactor(s);
+}
+
+/** S3 automated pricing: the market-clearing price, where demand equals capacity. Demand is
+ *  elastic (1.5), so this is also the revenue-maximising price for the capacity there is. */
+export function clearingPrice(s: State): number {
+  const cap = capacity(s);
+  if (cap <= 0) return s.market.price;
+  return Math.max(0.01, Math.pow(demandAt(s, 1) / cap, 1 / ELASTICITY));
 }
 
 export function researchCap(s: State): number {
@@ -94,7 +127,7 @@ export function rdFactor(capability: number): number {
 
 export function aiResearchPerSec(s: State): number {
   if (!s.flags.aiRd) return 0;
-  return s.res.agents * s.alloc.research * rdFactor(s.model.capability);
+  return s.res.agents * s.alloc.research * rdFactor(s.model.capability) * (s.mods.rdMult ?? 1);
 }
 
 // ------------------------------------------------------------------ prices
@@ -103,7 +136,22 @@ export function agentCost(s: State): number {
   return AGENT_BASE_COST * Math.pow(AGENT_COST_GROWTH, s.res.agents);
 }
 
+/** S3 bulk compute: list price per GPU, before the price multipliers. */
+export const GPU_BULK_COST = 20000;
+
+/** GPUs per `buy gpu` click: 1 until S3; then 10% of the fleet rounded down to a power of ten, within the cap. */
+export function gpuBlock(s: State): number {
+  if (!s.flags.bulkGpus) return 1;
+  const b = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, s.res.gpus))) - 1));
+  return Math.max(1, Math.min(b, s.caps.gpus - s.res.gpus));
+}
+
+/** Price of the next `buy gpu` click. */
 export function gpuCost(s: State): number {
+  if (s.flags.bulkGpus) {
+    const shock = (s.timed.chip_shock ?? 0) > s.t ? 3 : 1;
+    return GPU_BULK_COST * gpuBlock(s) * s.mods.gpuPriceMult * shock;
+  }
   const n = Math.max(0, s.res.gpus - 1 - s.caps.gpuCurveStart);
   const shock = (s.timed.gpu_delay ?? 0) > s.t ? 1.3 : 1;
   return GPU_BASE_COST * Math.pow(GPU_COST_GROWTH, n) * s.mods.gpuPriceMult * shock;
@@ -160,8 +208,9 @@ export function canBuyGpu(s: State): boolean {
 
 export function buyGpu(s: State): boolean {
   if (!canBuyGpu(s)) return false;
+  const n = gpuBlock(s);
   s.res.funds -= gpuCost(s);
-  s.res.gpus += 1;
+  s.res.gpus += n;
   if (!s.milestones.stamps.firstGpu) s.milestones.stamps.firstGpu = s.t;
   return true;
 }
@@ -234,6 +283,7 @@ export function hireEngineer(s: State): boolean {
 export function applyEconomyTick(s: State, dt: number): void {
   const r = s.res;
   const m = s.energyMkt;
+  if (s.flags.autoPricing) s.market.price = clearingPrice(s);
 
   // Energy market: base decays 0.5% every 25 s without a purchase, toward 120.
   m.decayTimer += dt;
@@ -280,7 +330,8 @@ export function applyEconomyTick(s: State, dt: number): void {
   }
   const atCap = !s.flags.noResearchCap && r.research >= rcap - 1e-9;
   if (atCap && r.researchers > 0 && !s.counters.researchCappedOnce) s.counters.researchCappedOnce = true;
-  const ips = s.flags.insight && atCap ? r.researchers * INSIGHT_PER_RESEARCHER : 0;
+  // Once the automated pipeline removes the cap, the researchers read the results: insight keeps accruing.
+  const ips = s.flags.insight && (atCap || s.flags.noResearchCap) ? r.researchers * INSIGHT_PER_RESEARCHER : 0;
   r.insight += ips * dt;
 
   // Release sales curve: 2.0 → 1.0 over 8 minutes.
@@ -344,7 +395,7 @@ export function rateBreakdown(s: State, key: string): [string, number][] {
       if (aiResearchPerSec(s)) out.push(['agents on research', aiResearchPerSec(s)]);
       break;
     case 'insight':
-      if (rt.insightPerSec) out.push(['reading group', rt.insightPerSec]);
+      if (rt.insightPerSec) out.push([s.flags.noResearchCap ? 'researchers' : 'reading group', rt.insightPerSec]);
       break;
     case 'tasks':
       if (rt.agentTasksPerSec) out.push(['agents', rt.agentTasksPerSec]);

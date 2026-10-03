@@ -1,7 +1,7 @@
 // The A Dark Room stores box: rows appear once and never leave; hover lists rates by source.
 import type { State } from '../../core/types.js';
 import { fmtData, fmtEnergy, fmtInt, fmtMoney } from '../../core/format.js';
-import { agentSlots, rateBreakdown } from '../../core/economy.js';
+import { agentSlots, powerCapacityGw, powerUsedGw, rateBreakdown } from '../../core/economy.js';
 import { h, setText, show } from '../dom.js';
 
 interface Row {
@@ -21,6 +21,8 @@ const ROWS: Row[] = [
   { key: 'research', label: 'research', visible: (s) => !!s.flags.research, value: (s) => (s.flags.noResearchCap ? fmtInt(s.res.research) : `${fmtInt(s.res.research)} / ${fmtInt(s.caps.researchCap)}`), unit: (n) => n.toFixed(1) },
   { key: 'insight', label: 'insight', visible: (s) => !!s.flags.insight, value: (s) => fmtInt(s.res.insight), unit: (n) => n.toFixed(2) },
   { key: 'data', label: 'data', visible: (s) => !!s.flags.data, value: (s) => fmtData(s.res.data) },
+  { key: 'power', label: 'power', visible: (s) => !!s.flags.power, value: (s) => `${powerUsedGw(s).toFixed(1)} / ${powerCapacityGw(s).toFixed(1)} GW` },
+  { key: 'robots', label: 'robots', visible: (s) => !!s.flags.robots, value: (s) => fmtInt(s.res.robots) },
 ];
 
 interface RowEls { row: HTMLElement; val: HTMLElement; tip: HTMLElement; tipKey: string }

@@ -7,6 +7,7 @@ import { PROJECTS as S4 } from './projects/stage4.js';
 import { PROJECTS as S5 } from './projects/stage5.js';
 import { AMBIENT, AMBIENT_CHOICES } from './events/ambient.js';
 import { SETPIECES, SETPIECE_CHOICES } from './events/setpieces.js';
+import { AMBIENT3, AMBIENT_CHOICES3, SETPIECES3, CHOICES3 } from './events/stage3.js';
 import { STAGES } from './stages.js';
 
 let done = false;
@@ -16,7 +17,10 @@ export function registerContent(): void {
   done = true;
   registerProjects([...S1, ...S2, ...S3, ...S4, ...S5]);
   registerEvents([...AMBIENT_CHOICES, ...SETPIECE_CHOICES]);
+  registerEvents([...AMBIENT_CHOICES3, ...CHOICES3]);
   registerAmbient(AMBIENT);
+  registerAmbient(AMBIENT3);
   registerSetPieces(SETPIECES);
+  registerSetPieces(SETPIECES3);
   registerStages(STAGES);
 }

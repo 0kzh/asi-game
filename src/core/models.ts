@@ -65,7 +65,7 @@ export function beginRun(s: State, key: string, projectId: string, budget: numbe
     budget: tutorial ? 0.5 : budget,
     gain: tutorial ? 1 : runGain(budget),
     capStart: s.model.capability,
-    capTarget: g.capability,
+    capTarget: g.capability + (s.mods.capBonus ?? 0),
     capNow: s.model.capability,
     findings: 0,
     safetyFirst: false,
@@ -143,7 +143,7 @@ function enterPhase(s: State, tr: TrainingRun, phase: TrainingRun['phase']): voi
     log(s, pick(s, TRAINING_LINES.post));
   } else if (phase === 'evals') {
     const base = generation(tr.key).findings;
-    const f = base * (0.7 + rand(s) * 0.6) * (tr.safetyFirst ? 0.5 : 1);
+    const f = base * (0.7 + rand(s) * 0.6) * (tr.safetyFirst ? 0.5 : 1) * (s.mods.findingsMult ?? 1);
     tr.findings = Math.max(0, Math.round(f));
     log(s, tr.findings > 0 ? `red team report: ${tr.findings} finding${tr.findings === 1 ? '' : 's'}.` : pick(s, TRAINING_LINES.evalsClean));
   } else if (phase === 'done') {

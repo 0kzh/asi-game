@@ -1,5 +1,6 @@
-// Headless greedy player: `node dist/sim/bot.js [minutes=25] [seed=1]`.
+// Headless greedy player: `node dist/sim/bot.js [minutes=25] [seed=1] [--from <snapshot>]`.
 // Prints a minute-by-minute table, milestone stamps, idle streaks and carrot violations.
+// `--from 3local` (or any snapshot id) starts from a dev snapshot and reports that stage.
 import { registerContent } from '../content/index.js';
 import { newState } from '../core/state.js';
 import { Engine, TICK } from '../core/engine.js';
@@ -8,7 +9,16 @@ import { canAfford, visibleProjects } from '../core/projects.js';
 import { agentSlots } from '../core/economy.js';
 import { fmtDate, fmtElapsed, fmtMoney, fmt } from '../core/format.js';
 import { Policy } from './policy.js';
-import type { State } from '../core/types.js';
+import { buildSnapshot } from '../dev/snapshots.js';
+import { buildStage3Local } from '../dev/snapshots/stage3.local.js';
+import { runStage3Report } from './stage3.js';
+import type { SnapshotId, State } from '../core/types.js';
+
+/** Snapshot ids the sim can start from: the dev snapshots plus local ones. */
+export function snapshotState(id: string, seed: number): State {
+  if (id === '3local') return buildStage3Local(seed);
+  return buildSnapshot(id as SnapshotId, seed);
+}
 
 declare const process: { argv: string[]; exitCode?: number };
 
@@ -127,10 +137,20 @@ export function runSim(minutes: number, seed: number, print = true): SimResult {
 
 const isMain = typeof process !== 'undefined' && Array.isArray(process.argv) && /bot\.js$/.test(process.argv[1] ?? '');
 if (isMain) {
-  const minutes = Number(process.argv[2] ?? 25) || 25;
-  const seed = Number(process.argv[3] ?? 1) || 1;
-  const r = runSim(minutes, seed);
-  const rel = r.stamps.agent1Released;
-  const ok = rel !== undefined && rel >= 840 && rel <= 1200 && r.maxIdleStreak <= 60 && r.carrotViolations.length === 0;
-  if (!ok) process.exitCode = 1;
+  const argv = process.argv.slice(2);
+  const fi = argv.indexOf('--from');
+  const from = fi >= 0 ? argv[fi + 1] : undefined;
+  if (fi >= 0) argv.splice(fi, 2);
+  const minutes = Number(argv[0] ?? 25) || 25;
+  const seed = Number(argv[1] ?? 1) || 1;
+  if (from) {
+    registerContent();
+    const r = runStage3Report(snapshotState(from, seed), minutes, seed, from);
+    if (!r.ok) process.exitCode = 1;
+  } else {
+    const r = runSim(minutes, seed);
+    const rel = r.stamps.agent1Released;
+    const ok = rel !== undefined && rel >= 840 && rel <= 1200 && r.maxIdleStreak <= 60 && r.carrotViolations.length === 0;
+    if (!ok) process.exitCode = 1;
+  }
 }

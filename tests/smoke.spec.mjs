@@ -1,7 +1,7 @@
 // Smoke test: serve the repo, open /?dev=1 in headless chromium, fail on any console
 // error. Clicks `complete task`, then drives the sim bot's policy through real DOM button
 // clicks at ×100 until stage 2, checks a greyed project appeared, checks the chart draws,
-// and jumps to every stage snapshot.
+// jumps to every stage snapshot, then plays stage 3 from the local snapshot to the vote.
 import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STAGE2_TIMEOUT_MS = 120_000;
+const STAGE3_TIMEOUT_MS = 300_000;
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -133,6 +134,70 @@ try {
     const h = await page.textContent('#tasksHeader');
     check(/Tasks Completed:/.test(h ?? '') && errors.length === 0, `snapshot ${id} renders without errors`);
   }
+
+  // Stage 3 from the local snapshot ('3local', seed 2): the DOM bot at ×100 until stage 4, an
+  // ending, or 300 s real. The stats box renders, `complete task` is gone, a greyed project is
+  // on screen, and the AGENT-3 flash plays exactly once.
+  await page.waitForSelector('#flash', { state: 'hidden', timeout: 10_000 }); // the snapshot-3 jump's flash
+  await page.evaluate(() => {
+    const el = document.getElementById('flash');
+    window.__flashes = [];
+    new MutationObserver(() => {
+      if (!el.hidden) window.__flashes.push(el.textContent);
+    }).observe(el, { attributes: true, attributeFilter: ['hidden'] });
+  });
+  await page.evaluate(async () => {
+    const { buildStage3Local } = await import('/dist/dev/snapshots/stage3.local.js');
+    const { serialize } = await import('/dist/core/state.js');
+    window.game.dev.load(serialize(buildStage3Local(2)));
+    const { Policy } = await import('/dist/sim/policy.js');
+    const click = (id) => {
+      const b = document.querySelector(`button[data-action="${CSS.escape(id)}"]`);
+      if (!b || b.disabled || b.closest('[hidden]')) return false;
+      b.click();
+      return true;
+    };
+    const policy = new Policy(click);
+    window.game.dev.setSpeed(100);
+    let lastT = -1;
+    window.__bot = setInterval(() => {
+      const s = window.game.state;
+      // Once per sim second, or whenever a modal is open (the vote pauses the clock).
+      if (Math.floor(s.t) === lastT && !s.modal) return;
+      lastT = Math.floor(s.t);
+      policy.second(s);
+    }, 4);
+  });
+  const t3 = Date.now();
+  let sawStats = false, sawGreyed = false, sawPower = false, completeShown = false, sawAuto = false;
+  let st3 = { stage: 3, ending: null, t: 0 };
+  while (Date.now() - t3 < STAGE3_TIMEOUT_MS) {
+    await page.waitForTimeout(250);
+    const ui = await page.evaluate(() => {
+      const vis = (sel) => { const el = document.querySelector(sel); return !!el && !el.hidden && !el.closest('[hidden]'); };
+      return {
+        stats: vis('#stats'), power: vis('#row_power'), auto: vis('#autoPricing'),
+        complete: vis('button[data-action="complete_task"]'),
+        greyed: document.querySelectorAll('.projectButton:disabled').length > 0,
+        stage: window.game.state.stage, ending: window.game.state.ending ?? null, t: window.game.state.t,
+      };
+    });
+    sawStats ||= ui.stats; sawPower ||= ui.power; sawAuto ||= ui.auto; sawGreyed ||= ui.greyed;
+    if (ui.stage === 3) completeShown ||= ui.complete;
+    st3 = ui;
+    if (ui.stage >= 4 || ui.ending) break;
+  }
+  await page.evaluate(() => { clearInterval(window.__bot); window.game.dev.setSpeed(1); });
+  const flashes = await page.evaluate(() => window.__flashes);
+  const simMin = Math.floor((st3.t - 3600) / 60);
+  check(st3.stage >= 4 || !!st3.ending, `stage 3 ends (${st3.ending ? `ending ${st3.ending}` : `stage ${st3.stage}`}) in ${((Date.now() - t3) / 1000).toFixed(1)} s real, T+${simMin} min sim`);
+  check(sawStats, 'the stats box rendered');
+  check(sawPower, 'the power row is in the stores box');
+  check(!completeShown && sawAuto, '`complete task` is gone and "pricing is automated." is shown');
+  check(sawGreyed, 'a greyed .projectButton:disabled was on screen in stage 3');
+  check(flashes.filter((x) => x === 'AGENT-3').length === 1, `the AGENT-3 flash played once (${JSON.stringify(flashes)})`);
+  const voteLine = await page.locator('.logLine', { hasText: 'the committee votes 6–4.' }).count();
+  check(st3.ending || voteLine > 0, 'log shows "the committee votes 6–4."');
 
   check(errors.length === 0, 'no console errors or page errors overall');
 } catch (e) {

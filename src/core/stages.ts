@@ -18,6 +18,7 @@ export function enterStage(s: State, id: StageId): void {
   const next = stageOf(s);
   s.dateDays = Math.max(s.dateDays, next.startDay);
   s.flags[`stage${id}`] = true;
+  s.flash = ''; // a pending flash belongs to the stage it was set in
   next.enter(s);
 }
 
