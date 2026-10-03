@@ -56,6 +56,7 @@ export function newState(seed = 1): State {
       researchPerSec: 0, idleResearchPerSec: 0, insightPerSec: 0,
     },
     chart: [],
+    chartMarks: [],
   };
   s.ambientAt = between(s, 45, 90);
   return s;
@@ -85,6 +86,7 @@ export function migrate(raw: any): State {
   if (!Array.isArray(s.log)) s.log = [];
   if (!Array.isArray(s.queue)) s.queue = [];
   if (!Array.isArray(s.chart)) s.chart = [];
+  if (!Array.isArray(s.chartMarks)) s.chartMarks = [];
   return s;
 }
 

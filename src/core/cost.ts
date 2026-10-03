@@ -36,8 +36,8 @@ export function costText(c: Cost, q?: Requirement): string {
   const parts: string[] = [];
   if (c.research) parts.push(`${fmtInt(c.research)} research`);
   if (c.insight) parts.push(`${fmtInt(c.insight)} insight`);
-  if (c.funds) parts.push(fmtPrice(c.funds));
   if (c.data) parts.push(`${fmtData(c.data)} data`);
+  if (c.funds) parts.push(fmtPrice(c.funds));
   if (c.gov) parts.push(`${c.gov} gov`);
   if (c.opinion) parts.push(`${c.opinion} public`);
   if (q?.gpus) parts.push(`${fmtInt(q.gpus)} gpus`);

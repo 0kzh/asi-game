@@ -9,6 +9,7 @@ import { fmtElapsed } from './format.js';
 import { REG } from './registry.js';
 import { canPay, meets, pay } from './cost.js';
 import { markBought, projectCost } from './projects.js';
+import { checkStageTransition } from './stages.js';
 
 export const BUDGETS = [0.25, 0.5, 1] as const;
 const DURATION_MULT: Record<string, number> = { '0.25': 0.75, '0.5': 1, '1': 1.25 };
@@ -79,7 +80,7 @@ export function beginRun(s: State, key: string, projectId: string, budget: numbe
   }
   s.training = run;
   s.flags.modelPanel = true;
-  log(s, `training ${g.name}. ${Math.round(run.duration)} s on ${Math.round(run.budget * 100)}% of the cluster.`);
+  log(s, `training ${run.name}. ${Math.round(run.duration)} s on ${Math.round(run.budget * 100)}% of the cluster.`);
   log(s, pick(s, TRAINING_LINES.pre));
 }
 
@@ -237,11 +238,13 @@ export function release(s: State): boolean {
   const stamp = tr.key === 'finetune' ? 'finetuneReleased' : `${tr.key}Released`;
   if (s.milestones.stamps[stamp] === undefined) s.milestones.stamps[stamp] = s.t;
   s.flags[`released:${tr.key}`] = true;
+  s.chartMarks.push([Math.round(s.dateDays), g.name]);
 
   if (card.total >= 32 && REG.events.frontier) {
     s.flags[`frontier:${tr.key}`] = true;
     if (!s.modal) openChoice(s, 'frontier');
   }
+  checkStageTransition(s);
   return true;
 }
 

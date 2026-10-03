@@ -33,14 +33,16 @@ export function generation(key) {
         throw new Error(`unknown generation ${key}`);
     return g;
 }
-/** Capability reference lines for the chart (design.md §4.5). */
+/** Capability reference lines for the chart (design.md §4.5; reference-analysis Part V §3.2). */
 export const CAPABILITY_LINES = [
     [1.0, 'average human'],
-    [2.0, 'professional'],
-    [3.0, 'top expert'],
-    [3.6, 'superhuman coder'],
-    [4.0, 'best researcher'],
-    [5.0, 'superintelligent researcher'],
-    [6.0, 'all of humanity'],
+    [1.5, 'a reliable remote worker'],
+    [2.0, 'a professional programmer'],
+    [3.0, 'the best human coder'],
+    [3.6, 'superhuman coder (×50,000, ×30 speed)'],
+    [4.0, 'the best researcher alive'],
+    [5.0, 'einstein'],
+    [6.0, 'all of humanity combined'],
+    [7.0, 'a century every six months'],
 ];
 //# sourceMappingURL=models.js.map

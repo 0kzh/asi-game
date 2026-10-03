@@ -1,0 +1,212 @@
+/* Takeoff — the whole look (design.md §9.2). Paperclips' skeleton and buttons,
+   A Dark Room's log, stores box, tooltips, modal and cooldown bar. Black, white, greys. */
+
+[hidden] { display: none !important; }
+
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+  font-weight: normal;
+  line-height: normal;
+  letter-spacing: normal;
+  background: #fff;
+  color: #000;
+  margin: 0;
+}
+
+#page { width: 860px; margin: 0 auto; padding: 16px 0 60px; }
+
+/* ---------------------------------------------------------------- header */
+#header { position: relative; margin-bottom: 14px; }
+h2 { line-height: 70%; margin: 14px 0 12px; }
+#clock {
+  position: absolute; right: 0; top: 6px;
+  font: 11px Helvetica, Arial, sans-serif; color: #444;
+}
+#hint { font-style: italic; font-size: 14px; color: #444; min-height: 18px; }
+
+/* ---------------------------------------------------------------- columns */
+#columns { display: flex; align-items: flex-start; gap: 10px; }
+#logCol { width: 220px; flex: 0 0 220px; position: relative; height: 700px; overflow: hidden; }
+#col2 { width: 300px; flex: 0 0 300px; }
+#col3 { width: 320px; flex: 0 0 320px; }
+
+@media (max-width: 899px) {
+  #page { width: auto; padding: 12px 16px 60px; }
+  #columns { flex-direction: column; }
+  #logCol, #col2, #col3 { width: 100%; max-width: 320px; flex: none; }
+  #logCol { order: 3; height: 360px; }
+  #col3 { order: 2; }
+}
+
+/* ---------------------------------------------------------------- log (ADR) */
+#log { width: 220px; height: 100%; overflow: hidden; }
+.logLine { margin-bottom: 10px; white-space: pre-line; }
+#logGradient {
+  position: absolute; bottom: 0; left: 0; width: 100%; height: 40%;
+  background: linear-gradient(rgba(255, 255, 255, 0), #fff);
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- motion */
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.fadein { animation: fadein 300ms linear; }
+.fadein-slow { animation: fadein 500ms linear; }
+
+/* ---------------------------------------------------------------- panels (Paperclips) */
+.panel { margin-bottom: 14px; }
+.panelTitle b { font-weight: bold; }
+hr {
+  display: block; margin-top: .05em; margin-bottom: .2em; margin-left: auto; margin-right: auto;
+  border-style: inset; border-width: 1px;
+}
+.line { margin: 5px 0; }
+.line.split { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+#compute.bare .lbl { display: none; }
+#compute.bare .line.split { justify-content: flex-start; }
+.small { font: 11px "Helvetica Neue", Helvetica, Arial, sans-serif; color: #222; }
+
+/* ---------------------------------------------------------------- buttons */
+.button2 {
+  border: 1px solid #1a1a1a;
+  background: #666666;
+  background: linear-gradient(to bottom, #ffffff, #888888);
+  padding: 2px 4px;
+  border-radius: 2px;
+  box-shadow: rgba(255, 255, 255, 0.4) 0 0px 0, inset rgba(255, 255, 255, 0.4) 0 1px 0;
+  text-shadow: #cccccc 0 1px 0;
+  color: #000000;
+  font-size: 11px;
+  font-family: helvetica, serif;
+  text-decoration: none;
+  vertical-align: middle;
+  outline: none;
+  cursor: pointer;
+}
+.button2:hover { border: 1px solid #898989; text-shadow: #d4d4d4 0 1px 0; background: linear-gradient(to bottom, #f7f7f7, #888888); color: #000000; }
+.button2:active, .button2[aria-pressed="true"] { text-shadow: #bfbfbf 0 1px 0; border: 1px solid #2e2e2e; background: linear-gradient(to bottom, #595959, #d9d9d9); color: #444444; }
+.button2:disabled { opacity: 0.6; border: 1px solid #ffffff; cursor: default; }
+.button2:disabled:hover { background: linear-gradient(to bottom, #ffffff, #888888); }
+
+/* The primary `complete task`: Paperclips' unused .button, 16 px, 12.5 × 25 padding. */
+.button {
+  border: 1px solid #1a1a1a;
+  background: #666666;
+  background: linear-gradient(to bottom, #ffffff, #888888);
+  padding: 12.5px 25px;
+  border-radius: 3px;
+  box-shadow: rgba(255, 255, 255, 0.4) 0 0px 0, inset rgba(255, 255, 255, 0.4) 0 1px 0;
+  text-shadow: #cccccc 0 1px 0;
+  color: #000000;
+  font-size: 16px;
+  font-family: helvetica, serif;
+  vertical-align: middle;
+  outline: none;
+  cursor: pointer;
+}
+.button:hover { border: 1px solid #898989; background: linear-gradient(to bottom, #f7f7f7, #888888); }
+.button:active { border: 1px solid #2e2e2e; background: linear-gradient(to bottom, #595959, #d9d9d9); color: #444444; }
+.button:disabled { opacity: 0.6; border: 1px solid #ffffff; cursor: default; }
+
+/* Project buttons: flat, #c8c8c8, the only hard black border; greyed = no border. */
+.projectButton {
+  display: block; width: 320px; min-height: 60px;
+  background: #c8c8c8; border: 1px solid rgba(0, 0, 0, 1);
+  outline: none; margin-bottom: 6px; text-align: left; padding: 4px 6px;
+  font: 13px Helvetica, Arial, sans-serif; color: #000; cursor: pointer;
+}
+.projectButton:hover { border: 1px solid rgba(0, 0, 0, 0.25); }
+.projectButton:active { background: #d1d1d1; border: 1px solid rgba(0, 0, 0, 1); }
+.projectButton:disabled { border: none; padding: 5px 7px; color: GrayText; cursor: default; }
+
+/* ---------------------------------------------------------------- stores box (ADR) */
+#stores, .box {
+  position: relative; z-index: 10; border: 1px solid #000; cursor: default;
+  padding: 5px 10px; width: 260px; margin: 14px 0 16px;
+}
+#stores:before, .box:before {
+  position: absolute; background: #fff; content: attr(data-legend); left: 8px; top: -13px; padding: 0 2px;
+}
+.box { width: 298px; box-sizing: border-box; }
+.storeRow { position: relative; }
+div.row_key { clear: both; float: left; }
+div.row_val { float: right; }
+div.clear { clear: both; }
+div.total { font-weight: bold; }
+.tipRow { overflow: hidden; }
+
+/* ADR tooltips: pure CSS hover. */
+div.tooltip {
+  display: none; padding: 2px 5px; border: 1px solid #000; position: absolute;
+  box-shadow: -1px 3px 2px #666; background: #fff; z-index: 999; width: 200px;
+}
+.tooltip.bottom { top: 20px; }
+.tooltip.right { left: 2px; }
+.storeRow.hasTip:hover > div.tooltip { display: block; }
+div.tooltip:hover { display: none !important; }
+
+/* ---------------------------------------------------------------- training bar (ADR cooldown) */
+.bar {
+  position: relative; z-index: 0; border: 1px solid #000; height: 22px; line-height: 22px;
+  text-align: center; margin: 5px 0; overflow: hidden; font-size: 14px;
+}
+.bar .cooldown { position: absolute; top: 0; left: 0; z-index: -1; height: 100%; background-color: #DDDDDD; width: 0; }
+.bar .barLabel { position: relative; }
+.endOfRun { margin: 5px 0; }
+
+/* ---------------------------------------------------------------- chart */
+#chart { display: block; width: 320px; height: 140px; border: 1px solid #000; box-sizing: border-box; }
+
+/* ---------------------------------------------------------------- modal (ADR event panel) */
+#modal { position: fixed; inset: 0; z-index: 20; background: rgba(255, 255, 255, 0.6); animation: fadein 200ms linear; }
+.eventPanel {
+  position: absolute; top: 90px; left: 50%; margin-left: -187px;
+  width: 335px; padding: 20px; background: #fff; border: 2px solid #000;
+  box-shadow: 5px 5px 5px #666666;
+}
+.eventTitle { display: inline-block; font-weight: bold; position: absolute; top: -12px; left: 18px; background: #fff; padding: 0 4px; }
+#description { position: relative; min-height: 60px; }
+#description > div { padding-bottom: 12px; }
+#buttons { overflow: hidden; }
+#buttons > .button2 { float: left; margin: 0 20px 5px 0; }
+
+/* ---------------------------------------------------------------- stage flash (Paperclips HypnoDrones) */
+#flash { position: fixed; inset: 0; z-index: 50; background: #000; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+#flash p { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 150px; color: #fff; line-height: 115px; margin: 0; text-align: center; }
+@media (max-width: 899px) { #flash p { font-size: 64px; line-height: 60px; } }
+
+/* ---------------------------------------------------------------- footer menu (ADR .menu) */
+.menu { position: fixed; right: 10px; bottom: 10px; color: #666; z-index: 10; }
+.menuBtn {
+  background: none; border: none; padding: 0; margin-left: 20px; cursor: pointer;
+  font: 11px Helvetica, Arial, sans-serif; color: #666;
+}
+.menuBtn:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- dev overlay */
+#devOverlay {
+  position: fixed; left: 10px; bottom: 34px; width: 310px; z-index: 30;
+  background: #fff; border: 1px solid #000; padding: 6px 8px; box-shadow: -1px 3px 2px #666;
+  font: 11px Helvetica, Arial, sans-serif;
+}
+.devRow { margin: 4px 0; display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.devLbl { width: 38px; color: #666; }
+.devPre { white-space: pre-wrap; font: 10px Menlo, monospace; max-height: 240px; overflow: auto; margin: 4px 0 0; }
+
+/* ---------------------------------------------------------------- end screen */
+#ending { width: 500px; margin: 60px auto; font-size: 16px; }
+.statLine { margin-bottom: 6px; }
+body.ended #page, body.ended #footer { display: none; }
+
+/* ---------------------------------------------------------------- lights off (ADR dark.css) */
+body.dark { background: #272823; color: #EEE; }
+body.dark #logGradient { background: linear-gradient(rgba(39, 40, 35, 0), #272823); }
+body.dark #stores, body.dark .box, body.dark .bar, body.dark #chart, body.dark .eventPanel { border-color: #EEE; }
+body.dark #stores:before, body.dark .box:before, body.dark .eventTitle, body.dark .eventPanel { background: #272823; }
+body.dark div.tooltip { background: #171813; border-color: #EEE; box-shadow: -1px 3px 2px #111; }
+body.dark .bar .cooldown { background-color: #444; }
+body.dark #modal { background: rgba(39, 40, 35, 0.6); }
+body.dark .projectButton { background: #3a3b35; color: #EEE; border-color: #EEE; }
+body.dark .projectButton:disabled { color: #777; }
+body.dark .small, body.dark #hint, body.dark #clock { color: #bbb; }
+body.dark #devOverlay { background: #272823; border-color: #EEE; }

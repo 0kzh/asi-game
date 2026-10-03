@@ -48,10 +48,10 @@ export function costText(c, q) {
         parts.push(`${fmtInt(c.research)} research`);
     if (c.insight)
         parts.push(`${fmtInt(c.insight)} insight`);
-    if (c.funds)
-        parts.push(fmtPrice(c.funds));
     if (c.data)
         parts.push(`${fmtData(c.data)} data`);
+    if (c.funds)
+        parts.push(fmtPrice(c.funds));
     if (c.gov)
         parts.push(`${c.gov} gov`);
     if (c.opinion)

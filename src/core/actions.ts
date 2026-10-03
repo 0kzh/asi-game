@@ -40,7 +40,7 @@ export const ACTIONS: Action[] = [
     id: `budget:${b}`,
     free: true,
     visible: (s) => s.modal?.kind === 'training',
-    enabled: (s) => s.modal?.kind === 'training' && s.modal.budget !== b,
+    enabled: (s) => s.modal?.kind === 'training',
     run: (s) => { if (s.modal?.kind === 'training') s.modal.budget = b; },
   })),
   {

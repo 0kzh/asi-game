@@ -213,6 +213,7 @@ export interface State {
   counters: Counters;
   rates: Rates;
   chart: [number, number, number][]; // [day, capability, rival capability]
+  chartMarks: [number, string][];    // [day, label]: releases, the theft, the memo, the vote, the treaty
   ending?: EndingId;
 }
 
