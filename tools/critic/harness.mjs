@@ -18,7 +18,7 @@ import { readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installHelpers, sleep } from './adapters/common.mjs';
-import { computeMetrics, toMarkdown } from './metrics.mjs';
+import { computeMetrics, toMarkdown, serializeResult } from './metrics.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +80,7 @@ async function startServer(dir, port, prefer) {
   try { execSync('command -v http-server', { stdio: 'ignore', shell: '/bin/sh' }); hasHttpServer = true; } catch {}
   if (prefer !== 'builtin' && hasHttpServer) {
     const child = spawn('http-server', [dir, '-p', String(port), '-a', '127.0.0.1', '-c-1', '-s'], { stdio: 'ignore' });
+    process.on('exit', () => { try { child.kill(); } catch {} });   // never leave an orphan server
     const url = `http://127.0.0.1:${port}/`;
     for (let i = 0; i < 100; i++) {
       try { const r = await fetch(url); if (r.status < 500) return { kind: 'http-server', close: () => child.kill() }; } catch {}
@@ -143,13 +144,16 @@ async function main() {
     if (finished) return; finished = true;
     meta.endedAt = new Date().toISOString();
     meta.endReason = reason;
-    try { await page.screenshot({ path: outBase + '.png', fullPage: true }); } catch {}
-    const metrics = computeMetrics(samples, meta);
-    const result = { meta, metrics, errors, samples };
-    await writeFile(outFile, JSON.stringify(result, null, 1));
-    await writeFile(outBase + '.md', toMarkdown(metrics, meta));
-    try { await browser.close(); } catch {}
-    try { server.close(); } catch {}
+    try {
+      try { await page.screenshot({ path: outBase + '.png', fullPage: true }); } catch {}
+      const metrics = computeMetrics(samples, meta);
+      const result = { meta, metrics, errors, samples };
+      await writeFile(outFile, serializeResult(result));
+      await writeFile(outBase + '.md', toMarkdown(metrics, meta));
+    } finally {
+      try { await browser.close(); } catch {}
+      try { server.close(); } catch {}
+    }
     console.log(`[critic] wrote ${outFile} (${samples.length} samples, ${errors.length} page errors) and ${outBase}.md`);
   }
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, async () => { console.log(`\n[critic] ${sig}, writing partial results`); await finish('interrupted'); process.exit(130); });

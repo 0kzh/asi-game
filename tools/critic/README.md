@@ -223,4 +223,12 @@ Recorded on 2026-10-03, headless Chromium at 1280×900 and `--seed 1`. Re-run an
 | `adarkroom-s1-8m.*` | `--game adarkroom --stage 1 --minutes 8 --speed 2 --seed 1` |
 | `compare-reference.md` | `compare.mjs` over the three runs above |
 
-RESULTS_SUMMARY_PLACEHOLDER
+What the bots reached:
+- **Paperclips stage 1 (10 min, real time).**
+  - AutoClippers appear at 0:23. Computational Resources, Trust and Projects all appear together at 2:58, so that is the run's one stage transition (+3 panels).
+  - The bot bought 4 projects: RevTracker, Improved AutoClippers, Improved Wire Extrusion and Even Better AutoClippers.
+  - It ended with 33 AutoClippers, trust 6 (2 processors, 4 memory) and 16,926 clips, and never ran out of wire.
+- **Paperclips stage 2 (5 min).** Power Grid, Nanoscale Wire, Harvester and Wire Drones were bought, and the Power, Wire Production and drone panels appeared. Clip Factories was still greyed at the end.
+- **A Dark Room stage 1 (8 min at hyper, 16 game minutes).** The fire was lit at 0:01 and the forest opened at 0:23. The builder started building at 1:28 (trap and cart), the hut appeared at 3:04, the lodge at 6:12 and workers at 7:59.
+
+See `compare-reference.md` for the full rubric table over these three runs.

@@ -195,6 +195,13 @@ export function computeMetrics(samples, meta = {}) {
   };
 }
 
+// Results file layout: meta/metrics/errors pretty-printed, one sample per line.
+export function serializeResult(result) {
+  const { samples = [], ...rest } = result;
+  const head = JSON.stringify(rest, null, 1);
+  return head.slice(0, -2) + ',\n "samples": [\n' + samples.map((x) => JSON.stringify(x)).join(',\n') + '\n ]\n}\n';
+}
+
 const fmtSeries = (arr) => (arr || []).map((x) => (x === null || x === undefined ? '-' : x)).join(' ');
 const fmtT = (s) => (s === null || s === undefined ? 'never' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')} (${s}s)`);
 
@@ -250,7 +257,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (args.includes('--json')) console.log(JSON.stringify(metrics, null, 2));
   else if (args.includes('--write')) {
     res.metrics = metrics;
-    writeFileSync(file, JSON.stringify(res, null, 1));
+    writeFileSync(file, serializeResult(res));
     writeFileSync(file.replace(/\.json$/, '') + '.md', toMarkdown(metrics, res.meta));
     console.log(`wrote ${file} and ${file.replace(/\.json$/, '')}.md`);
   } else console.log(toMarkdown(metrics, res.meta));
