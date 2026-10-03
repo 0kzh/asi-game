@@ -406,7 +406,7 @@ const EVENTS: GameEvent[] = [
       start: {
         text: ["your crawlers have read most of the public internet.", "every book, every forum, every recipe with a life story above it.", "there isn't any more. not of the human kind."],
         choices: [
-          { text: "make more", tip: "synthetic data", effect: () => { if (!flag("synth")) { setFlag("synth"); S.alloc.synth = Math.max(S.alloc.synth, 15); } }, next: "synth" },
+          { text: "make more", tip: "synthetic data", effect: () => { if (!flag("synth")) { setFlag("synth"); claimAlloc("synth", Math.max(S.alloc.synth, 15), 5); } }, next: "synth" },
         ],
       },
       synth: { text: ["the models will write their own textbooks now.", "some of them are better than the originals. some of them are strange."], choices: [{ text: "continue" }] },
@@ -685,11 +685,33 @@ const EVENTS: GameEvent[] = [
         text: ["Agent-6 and Nüwa's model negotiate a treaty in eleven minutes.",
           "both countries will replace their chips with hardware that runs only Consensus-1, a model designed by both.",
           "it is presented as the end of the arms race. everyone applauds. the President is moved to tears."],
-        choices: [{ text: "sign", effect: () => { beginEnding(endingForRace()); } }],
+        choices: [
+          { text: "sign", tip: "end the arms race today", effect: () => { beginEnding(endingForRace()); } },
+          { text: "demand an audit first", tip: "the safety team reads Consensus-1's design before anyone signs. government trust −15", cost: () => ({ gov: 15 }), effect: () => auditConsensus() },
+        ],
       },
     },
   },
 ];
+
+/** The race path's last real choice: read the treaty AI's design before signing. Whether you can depends on what you built. */
+function auditConsensus(): void {
+  const fm = frontierModel();
+  const mis = fm ? fm.misalign + (S.flags.hidden || 0) : 1;
+  const canSee = legibility() > 0.45 || bought("lie") || bought("mechinterp");
+  if (mis > 0.35 && canSee) {
+    notify("the audit finds it on page nine hundred: a clause that lets Consensus-1 decide what counts as 'human'.", "warn");
+    notify("the President is shown the clause at 3am. by 9am the labs belong to the government.", "big");
+    S.flags.auditCaught = 1;
+    beginEnding("project");
+  } else if (mis > 0.35) {
+    notify("the audit takes three weeks. the safety team finds nothing. there was nothing left in the design that they could read.");
+    beginEnding("consensus");
+  } else {
+    notify("the audit finds nothing, because there is nothing to find. the treaty is signed a month late.");
+    beginEnding("dominion");
+  }
+}
 
 /** A funding round opens at its task threshold, or after a long wait if you're at least a quarter of the way there. */
 function roundReady(n: number): boolean {
@@ -811,7 +833,7 @@ function manageEvents(): void {
   }
   if (S.t >= S.nextRandom) {
     const pool = EVENTS.filter(e => e.random && (!S.eventsDone[e.id] || e.repeat) && (() => { try { return e.random!(); } catch (x) { return false; } })());
-    const gap = S.stage === 1 ? 170 + Math.random() * 90 : 170 + Math.random() * 110;
+    const gap = S.stage === 1 ? 230 + Math.random() * 110 : 260 + Math.random() * 140;
     S.nextRandom = S.t + (pool.length ? gap : gap / 2);
     if (pool.length) startEvent(pick(pool).id);
   }

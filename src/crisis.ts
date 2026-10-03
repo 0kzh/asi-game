@@ -104,10 +104,7 @@ function manageCrisis(dt: number): void {
 function startCrisis(d: CrisisDef): void {
   S.crisis = { id: d.id, name: d.name, threat: 0.05, progress: 0, started: S.t, deaths: 0, resolved: false };
   reveal("crisis");
-  if (S.alloc.defense === 0) {
-    const room = 95 - (S.alloc.train + S.alloc.exp + S.alloc.synth + S.alloc.research + S.alloc.monitor);
-    S.alloc.defense = Math.max(0, Math.min(15, room));
-  }
+  if (S.alloc.defense === 0) claimAlloc("defense", 15, 10);
   notify(d.intro[0], "warn");
   queueEvent("crisis_" + d.id);
 }
@@ -134,7 +131,7 @@ EVENTS.push(
       start: {
         text: () => crisisDef("grid").intro,
         choices: [
-          { text: "lend the grid your models", tip: "divert more compute to defense", effect: () => { S.alloc.defense = Math.min(S.alloc.defense + 15, 95 - (S.alloc.train + S.alloc.exp + S.alloc.synth + S.alloc.research + S.alloc.monitor)); addGovMod(3); } },
+          { text: "lend the grid your models", tip: "divert more compute to defense", effect: () => { claimAlloc("defense", S.alloc.defense + 15, S.alloc.defense + 10); addGovMod(3); } },
           { text: "hack back", tip: "tension +10, faster response", effect: () => { S.tension += 10; if (S.crisis) S.crisis.progress += 0.2; } },
         ],
       },
@@ -148,7 +145,7 @@ EVENTS.push(
         choices: [
           { text: "vaccine sprint", tip: "spend research, jump-start the response", cost: () => ({ rp: Math.round(Math.max(1e6, S.rp * 0.3)) }), effect: () => { if (S.crisis) S.crisis.progress += 0.25; } },
           { text: "global lockdown", tip: "slows the spread. approval −5", effect: () => { addApprovalMod(-5); if (S.crisis) S.crisis.threat = Math.max(0, S.crisis.threat - 0.15); } },
-          { text: "let the models handle it", tip: "divert compute to defense", effect: () => { S.alloc.defense = Math.min(S.alloc.defense + 10, 95 - (S.alloc.train + S.alloc.exp + S.alloc.synth + S.alloc.research + S.alloc.monitor)); } },
+          { text: "let the models handle it", tip: "divert compute to defense", effect: () => { claimAlloc("defense", S.alloc.defense + 10, S.alloc.defense + 5); } },
         ],
       },
     },

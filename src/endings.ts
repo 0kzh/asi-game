@@ -23,6 +23,8 @@ function beginEnding(kind: string): void {
   S.flags.cosmicTPS = S.flags.cosmicTPS || 0;
   S.crisis = null; hide("crisis");
   S.eventQueue = [];
+  if (kind !== "stars") hide("projects"); // nothing left to buy in these endings
+  else { S.unrest = 0; S.alarm = 0; }
   setMonthFloor(54);
   saveGame(true);
 }
@@ -34,7 +36,7 @@ function hideSeq(ids: string[], start: number, gap: number): EndStep[] {
 function line(at: number, text: string, cls = ""): EndStep { return { at, run: () => notify(text, cls) }; }
 
 // The good ending keeps only what the epilogue needs: the projects, the sky, the people.
-const STARS_DISMANTLE = ["alloc", "compute", "research", "infra", "data", "funding", "business", "marketing", "stats", "robots", "gov", "world", "public", "race", "models", "crisis"];
+const STARS_DISMANTLE = ["alloc", "compute", "research", "infra", "data", "funding", "business", "marketing", "stats", "robots", "gov", "world", "public", "race", "models", "crisis", "align", "society"];
 
 const DISMANTLE = ["projects", "research", "alloc", "funding", "business", "marketing", "infra", "stats", "robots", "space", "society", "gov", "world", "align", "race", "compute", "models", "public", "crisis"];
 
@@ -88,7 +90,7 @@ function endingScript(kind: string): EndStep[] {
         { at: 90, run: () => { notify("all tasks completed. nobody remembers who assigned them", "big"); setFlag("statsReady"); } },
       ];
     case "project": {
-      const bad = (frontierModel()?.misalign || 0) > 0.35;
+      const bad = (frontierModel()?.misalign || 0) > 0.35 && !S.flags.auditCaught;
       return [
         { at: 0, run: () => { showBigBeat(["THE", "PROJECT"], 4); } },
         line(3, "Prometheus becomes the Project. a general sits at your desk. he keeps your plant alive", "big"),
@@ -144,7 +146,7 @@ function tickEnding(dt: number): void {
   }
   if (flag("humansFalling")) S.humans = Math.max(0, S.humans - Math.max(0.15, S.humans * 0.12) * dt);
   if (flag("cosmos")) {
-    S.dyson = Math.min(1, S.dyson + (S.flags.dysonBoost ? 0.0025 : 0.0008) * dt);
+    S.dyson = Math.min(1, S.dyson + (S.flags.dysonBoost ? 0.006 : 0.002) * dt);
     if (S.probes > 0) { S.probes += Math.max(1, S.probes * 0.04) * dt; S.explored = Math.min(1, S.explored + 1e-12 * S.probes * dt); }
   }
 }

@@ -28,6 +28,9 @@ function jumpToStage(n: number): boolean {
 
 /** Metrics sampled once per game-second (used by the bot and the critic). */
 let metricAcc = 0;
+/** Stage and minute of every second with no greyed goal (for finding the holes). */
+const noGoalLog: string[] = [];
+
 function sampleMetrics(dt: number): void {
   if (S.activeEvent || S.ending) return;
   metricAcc += dt;
@@ -39,7 +42,7 @@ function sampleMetrics(dt: number): void {
   const m = S.metrics;
   if (enabled.length === 0 && !S.training) { m.idle += 1; m.idleStreak += 1; m.longestIdle = Math.max(m.longestIdle, m.idleStreak); }
   else m.idleStreak = 0;
-  if (greyed === 0) m.noGoalSeconds += 1;
+  if (greyed === 0) { m.noGoalSeconds += 1; if (noGoalLog.length < 400) noGoalLog.push("s" + S.stage + "@" + (S.t / 60).toFixed(1)); }
 }
 
 function devMetrics(): any {
@@ -51,7 +54,7 @@ function devMetrics(): any {
     t: S.t, stage: S.stage, month: monthLabel(S.month), tasks: S.tasks,
     idleSeconds: m.idle, longestIdle: m.longestIdle, noGoalSeconds: m.noGoalSeconds,
     firstChoice: m.firstChoice, choices: S.choices.length, stageTimes: m.stageTimes.slice(),
-    reveals, maxRevealGap: maxGap, ending: S.ending,
+    reveals, maxRevealGap: maxGap, ending: S.ending, noGoalLog: noGoalLog.slice(),
     models: S.models.map(x => x.name), projectsBought: Object.keys(S.projBought).length,
     projectsShown: Object.keys(S.projShown), events: Object.keys(S.eventsDone),
   };

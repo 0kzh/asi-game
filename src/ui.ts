@@ -46,6 +46,7 @@ interface BtnOpts {
   cdMax?: () => number;
   tip?: () => string;
   buy?: boolean;       // a purchase (counts for "something to do" / "greyed goal" metrics)
+  price?: () => string; // shown on the button itself, as Paperclips prints "Cost:" (tooltips fail on touch)
   cls?: string;
 }
 
@@ -57,6 +58,8 @@ function btn(parent: HTMLElement, o: BtnOpts): HTMLDivElement {
   const cd = div(b, "cd");
   const label = el("span", "lbl");
   b.appendChild(label);
+  const pr = el("span", "pr");
+  if (o.price) b.appendChild(pr);
   const tt = div(b, "tt");
   if (o.buy) b.dataset.buy = "1";
   b.addEventListener("click", () => {
@@ -69,6 +72,7 @@ function btn(parent: HTMLElement, o: BtnOpts): HTMLDivElement {
     setShown(b, show);
     if (!show) return;
     setText(label, typeof o.label === "function" ? o.label() : o.label);
+    if (o.price) setText(pr, o.price());
     let en = o.enabled ? o.enabled() : true;
     if (o.cooldown) {
       const left = cooldownLeft(o.cooldown);
@@ -190,7 +194,7 @@ const PANELS: PanelDef[] = [
         tip: () => "make it the public product. more capable, more valuable tasks" });
       btn(rowA, { label: "deploy internally", onClick: deployInternal, visible: () => S.ready >= 0 && S.stage >= 3, buy: true, tip: () => "put it to work on AI research" });
       btn(rowA, { label: "run evals", onClick: runEvals, visible: () => S.ready >= 0 && flag("evals") && !readyModel()!.evaluated, enabled: () => canAfford(evalCost()), buy: true,
-        tip: () => "costs " + costText(evalCost()) + ". find out what it does when nobody's watching" });
+        price: () => costText(evalCost()), tip: () => "find out what it does when nobody's watching" });
       const nb = div(b, "next");
       btn(nb, { label: () => { const g = nextGen(); return g ? "train " + g.name : ""; }, onClick: startTraining, enabled: canTrain, buy: true,
         visible: () => { const g = nextGen(); return !!g && !S.training && !!S.designed[g.id] && !S.ending; },
@@ -215,7 +219,7 @@ const PANELS: PanelDef[] = [
       btn(pr, { label: "raise", onClick: () => { raisePrice(); S.flags.priceMoves = (S.flags.priceMoves || 0) + 1; }, visible: () => !S.autoPrice, cls: "small" });
       txt(pr, () => "price per task: " + fmtMoney(S.price) + (S.autoPrice ? " <span class='dim'>(auto)</span>" : ""), undefined, "inline");
       btn(b, { label: () => "marketing (level " + S.mkt + ")", onClick: buyMarketing, enabled: () => S.funds >= marketingCost(), visible: () => rv("marketing"), buy: true,
-        tip: () => "demand ×1.35 · " + fmtMoney(marketingCost()) });
+        price: () => fmtMoneyShort(marketingCost()), tip: () => "demand ×1.35" });
       txt(b, () => "market share: " + fmtPct(marketShare()) + " <span class='dim'>(" + bestRival().name + " has a better model)</span>", () => S.deployed >= 0 && marketShare() < 0.99 && S.month >= 0.8);
       txt(b, () => "only " + fmtPct(S.gpu > 0 ? split().serve / S.gpu : 0) + " of compute is serving customers. revenue is starving", () => S.deployed >= 0 && rv("alloc") && S.gpu > 0 && split().serve / S.gpu < 0.25, "row warn");
     },
@@ -259,7 +263,7 @@ const PANELS: PanelDef[] = [
     },
   },
   {
-    id: "infra", title: "Infrastructure", visible: () => rv("infra") && S.stage < 4,
+    id: "infra", title: "Infrastructure", visible: () => rv("infra") && S.stage < 3,
     build: b => {
       txt(b, () => "slots: " + fmtShort(S.gpu) + " / " + fmtShort(gpuCapacity()) + " GPUs");
       txt(b, () => { const p = perf(); return "power: " + fmtShort(S.powerMW) + " MW / " + fmtShort(powerNeedMW()) + " MW needed" + (p < 0.999 ? " · <span class='warn'>throttled to " + fmtPct(p) + "</span>" : ""); });
@@ -267,12 +271,12 @@ const PANELS: PanelDef[] = [
       const r1 = div(b, "btnRow");
       for (const k of DC_KINDS) {
         btn(r1, { label: "build " + k.name, onClick: () => build(k, "dc"), visible: k.ok, enabled: () => S.funds >= k.cost() && S.building.filter(x => x.kind.indexOf("dc:") === 0).length < maxConcurrentBuilds(), buy: true,
-          tip: () => "+" + fmtShort(k.amount) + " slots · " + fmtMoney(k.cost()) + " · ~" + Math.round(k.time / permitMult()) + "s" });
+          price: () => fmtMoneyShort(k.cost()), tip: () => "+" + fmtShort(k.amount) + " slots · ~" + Math.round(k.time / permitMult()) + "s to build" });
       }
       const r2 = div(b, "btnRow");
       for (const k of PLANT_KINDS) {
         btn(r2, { label: k.name, onClick: () => build(k, "plant"), visible: () => k.id === "gas" || k.ok() || (k.id === "nuclear" && S.stage >= 2), enabled: () => k.ok() && S.funds >= k.cost() && S.building.filter(x => x.kind.indexOf("plant:") === 0).length < maxConcurrentBuilds(), buy: true,
-          tip: () => "+" + fmtShort(k.amount) + " MW · " + fmtMoney(k.cost()) + (k.ok() ? "" : " · " + k.why()) });
+          price: () => fmtMoneyShort(k.cost()), tip: () => "+" + fmtShort(k.amount) + " MW" + (k.ok() ? "" : " · " + k.why()) });
       }
       const list = div(b, "builds");
       addUpd(() => {
@@ -302,15 +306,16 @@ const PANELS: PanelDef[] = [
       txt(b, () => "GPUs: <b>" + fmt(S.gpu) + "</b> / " + fmt(gpuCapacity()) + (S.stage === 1 ? " <span class='dim'>(" + TIERS[Math.min(S.tier, 3)].name + ")</span>" : " H100e"));
       const r = div(b, "btnRow");
       const sizes = [1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7];
+      txt(b, () => "Agent-3 runs procurement and construction now. you decide what the compute is for.", () => S.stage === 3, "row dim");
       for (const n of sizes) {
         btn(r, { label: () => (S.stage === 1 && S.tier < 4 ? "rent" : "buy") + " " + (n === 1 ? "a GPU" : "×" + fmtShort(n)), onClick: () => buyGPU(n), buy: true,
-          visible: () => { const cap = gpuCapacity(); return (n === 1 && S.gpu < 2000) || (n > 1 && n <= cap / 4 && n >= cap / 3000); },
-          enabled: () => gpuBuyable(n), tip: () => fmtMoney(gpuPrice() * n) + (S.stage >= 2 ? " · needs " + fmtShort(n) + " chips in stock" : ""), cls: "small" });
+          visible: () => { const cap = gpuCapacity(); return S.stage < 3 && ((n === 1 && S.gpu < 2000) || (n > 1 && n <= cap / 4 && n >= cap / 3000)); },
+          enabled: () => gpuBuyable(n), price: () => fmtMoneyShort(gpuPrice() * n), tip: () => S.stage >= 2 ? "needs " + fmtShort(n) + " chips in stock" : "", cls: "small" });
       }
-      btn(r, { label: "buy max", onClick: buyMaxGPU, visible: () => S.gpu >= 20, enabled: () => gpuBuyable(1), buy: true, cls: "small", tip: () => "as many as you can afford and fit" });
-      txt(b, () => "price: " + fmtMoney(gpuPrice()) + " per GPU" + (gpuRoom() < 1 ? " · <span class='warn'>no room. you need more space</span>" : ""), undefined, "row dim");
+      btn(r, { label: "buy max", onClick: buyMaxGPU, visible: () => S.gpu >= 20 && S.stage < 3, enabled: () => gpuBuyable(1), buy: true, cls: "small", tip: () => "as many as you can afford and fit" });
+      txt(b, () => "price: " + fmtMoney(gpuPrice()) + " per GPU" + (gpuRoom() < 1 ? " · <span class='warn'>no room. you need more space</span>" : ""), () => S.stage < 3, "row dim");
       const ab = div(b, "btnRow");
-      btn(ab, { label: () => "autobuy: " + (S.autoBuy ? "on" : "off"), onClick: () => { S.autoBuy = !S.autoBuy; }, visible: () => flag("autoBuyUnlocked"), cls: "small" });
+      btn(ab, { label: () => "autobuy: " + (S.autoBuy ? "on" : "off"), onClick: () => { S.autoBuy = !S.autoBuy; }, visible: () => flag("autoBuyUnlocked") && S.stage < 3, cls: "small" });
       const al = div(b, "allocs");
       txt(al, () => "<b>allocation</b>", () => rv("alloc"), "row sub");
       allocRow(al, "serve", "serving customers", () => rv("alloc") && S.deployed >= 0, () => "everything not allocated elsewhere answers customers");
@@ -325,26 +330,25 @@ const PANELS: PanelDef[] = [
     id: "data", title: "Data", visible: () => (flag("crawlers") || flag("datasets_on") || S.stage >= 2) && (S.stage < 3 || (S.stage === 3 && S.webLeft > WEB_TOTAL * 0.01)),
     build: b => {
       txt(b, () => "incoming: " + rate(dataRate(), " tokens/s"));
-      txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL, S.webLeft < WEB_TOTAL * 0.1 ? 1 : 0) + (S.webLeft < WEB_TOTAL * 0.25 ? " <span class='warn'>· the data wall</span>" : ""), () => flag("crawlers"), "row dim");
+      txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL, S.webLeft < WEB_TOTAL * 0.1 ? 1 : 0) + (S.webLeft < WEB_TOTAL * 0.25 ? (/tokens/.test(trainBlocker()) ? " <span class='warn'>· the data wall</span>" : " · the data wall") : ""), () => flag("crawlers"), "row dim");
       const r = div(b, "btnRow");
       btn(r, { label: () => "add crawler (" + S.crawlers + ")", onClick: buyCrawler, visible: () => flag("crawlers") && S.stage <= 2, enabled: () => S.funds >= crawlerCost() * (S.stage >= 2 ? 1e4 : 1), buy: true,
-        tip: () => fmtMoney(crawlerCost() * (S.stage >= 2 ? 1e4 : 1)) + " · +" + fmtShort(3e5 * S.dataMult * (flag("crawlFarm") ? 3 : 1) * (S.stage >= 2 ? 400 : 1) * Math.max(0, S.webLeft / WEB_TOTAL)) + " tokens/s" });
+        price: () => fmtMoneyShort(crawlerCost() * (S.stage >= 2 ? 1e4 : 1)), tip: () => "+" + fmtShort(3e5 * S.dataMult * (flag("crawlFarm") ? 3 : 1) * (S.stage >= 2 ? 400 : 1) * Math.max(0, S.webLeft / WEB_TOTAL)) + " tokens/s" });
       btn(r, { label: "buy dataset", onClick: buyDataset, visible: () => flag("datasets_on") && S.stage <= 3 && S.webLeft > WEB_TOTAL * 0.01, enabled: () => S.funds >= datasetCost() && datasetSize() > 1e6, buy: true,
-        tip: () => datasetSize() > 1e6 ? fmtMoney(datasetCost()) + " · +" + fmtShort(datasetSize()) + " tokens" : "the brokers have nothing left to sell" });
+        price: () => fmtMoneyShort(datasetCost()), tip: () => datasetSize() > 1e6 ? "+" + fmtShort(datasetSize()) + " tokens" : "the brokers have nothing left to sell" });
     },
   },
   {
     id: "research", title: "Research", visible: () => rv("research"),
     build: b => {
       const r = div(b, "btnRow");
-      btn(r, { label: () => "hire researcher (" + S.researchers + ")", onClick: () => hire("researcher"), enabled: () => S.funds >= hireCost("researcher"), buy: true, visible: () => S.stage <= 3,
-        tip: () => fmtMoney(hireCost("researcher")) + " · +" + S.talent.toFixed(1) + " research/s" });
+      btn(r, { label: () => "hire researcher (" + S.researchers + ")", onClick: () => hire("researcher"), enabled: () => S.funds >= hireCost("researcher"), buy: true, visible: () => S.stage <= 2,
+        price: () => fmtMoneyShort(hireCost("researcher")), tip: () => "+" + S.talent.toFixed(1) + " research/s" });
       btn(r, { label: () => "hire safety (" + S.safety + ")", onClick: () => hire("safety"), visible: () => flag("safetyUnlocked"), enabled: () => S.funds >= hireCost("safety"), buy: true,
-        tip: () => fmtMoney(hireCost("safety")) + " · alignment research" });
+        price: () => fmtMoneyShort(hireCost("safety")), tip: () => "alignment research" });
       bar(b, () => S.rp / rpCap(), () => "research: " + fmt(S.rp) + " / " + fmt(rpCap()) + " (" + rate(rpRate()) + ")");
       allocRow(b, "exp", "experiments compute", () => flag("experiments"), () => S.stage >= 3 ? "compute for experiments. the cap also grows with AI research" : "each GPU on experiments raises the research cap by 40");
-      txt(b, () => { const p = capBlockedProject(); return p ? "the research cap is too low for <i>" + p + "</i>." + (flag("experiments") ? " put more compute on experiments." : " the researchers need an experiment budget.") : ""; },
-        () => !!capBlockedProject(), "row warn");
+      txt(b, () => capHint(), () => !!capBlockedProject(), "row warn");
       txt(b, () => "insights: <b>" + fmt(S.insight, 1) + "</b> <span class='dim'>(" + rate(insightRate()) + (insightCapped() ? ", research is full ×6" : ", ×6 while research is full") + ")</span>", () => flag("insights"));
       txt(b, () => "AI-assisted research: <b>" + aiAssist().toFixed(1) + "x</b> <span class='dim'>(copilots)</span>", () => S.stage === 2 && aiAssist() > 1.05);
       txt(b, () => "AI research multiplier: <b>" + fmtMult(rdMultiplier()) + "</b>", () => S.internalModel >= 0);
@@ -400,7 +404,7 @@ const PANELS: PanelDef[] = [
       bar(b, () => monitorStrength(), () => "monitor strength: " + fmtPct(monitorStrength()), () => flag("monitors"));
       bar(b, () => alignConfidence(), () => "alignment confidence: " + fmtPct(alignConfidence()), undefined, "conf");
       bar(b, () => S.alignRes / alignNeed(frontierCap()), () => "alignment research: " + fmtPct(Math.min(9.99, S.alignRes / alignNeed(frontierCap()))) + " of what the frontier needs");
-      txt(b, () => "warning signs: " + Math.floor(S.alarm), () => S.alarm >= 1, "row warn");
+      txt(b, () => "warning signs: " + (S.t - alarmSeenT() < 60 ? "<span class='warn'>" + Math.floor(S.alarm) + " (new)</span>" : Math.floor(S.alarm)), () => S.alarm >= 1);
       btn(b, { label: "red-team the frontier model", onClick: redTeam, cooldown: "redteam", cdMax: () => REDTEAM_CD, visible: () => flag("redteamVerb") && !S.ending,
         tip: () => "+" + fmt(redTeamGain()) + " alignment research · may surface warning signs" });
       txt(b, () => "the confidence number is computed by the models you're testing.", () => S.neuralese || legibility() < 0.4, "row dim");
@@ -452,7 +456,7 @@ const PANELS: PanelDef[] = [
     build: b => {
       bar(b, () => S.approval / 100, () => "approval: " + Math.round(S.approval) + "%");
       txt(b, () => "jobs automated: " + fmtShort(S.jobs));
-      btn(b, { label: "PR campaign", onClick: prCampaign, visible: () => flag("prUnlocked"), enabled: () => S.funds >= prCost(), buy: true, tip: () => fmtMoney(prCost()) + " · approval +4" });
+      btn(b, { label: "PR campaign", onClick: prCampaign, visible: () => flag("prUnlocked"), enabled: () => S.funds >= prCost(), buy: true, price: () => fmtMoneyShort(prCost()), tip: () => "approval +4" });
     },
   },
   {
@@ -461,8 +465,8 @@ const PANELS: PanelDef[] = [
       bar(b, () => S.gov / 100, () => "government trust: " + Math.round(S.gov));
       txt(b, () => "security: SL" + S.security);
       const r = div(b, "btnRow");
-      btn(r, { label: () => "upgrade to SL" + (S.security + 1), onClick: upgradeSecurity, visible: () => S.security < 5, enabled: () => S.funds >= securityCost(), buy: true, tip: () => fmtMoney(securityCost()) + " · makes the weights harder to steal" });
-      btn(r, { label: "lobby", onClick: lobby, visible: () => flag("lobbyUnlocked"), enabled: () => S.funds >= lobbyCost(), buy: true, tip: () => fmtMoney(lobbyCost()) + " · government trust +6" });
+      btn(r, { label: () => "upgrade to SL" + (S.security + 1), onClick: upgradeSecurity, visible: () => S.security < 5, enabled: () => S.funds >= securityCost(), buy: true, price: () => fmtMoneyShort(securityCost()), tip: () => "makes the weights harder to steal" });
+      btn(r, { label: "lobby", onClick: lobby, visible: () => flag("lobbyUnlocked"), enabled: () => S.funds >= lobbyCost(), buy: true, price: () => fmtMoneyShort(lobbyCost()), tip: () => "government trust +6" });
       txt(b, () => "Oversight Committee: in session", () => S.oversight, "row dim");
     },
   },
@@ -482,9 +486,9 @@ const PANELS: PanelDef[] = [
 function layoutFor(stage: number): string[][] {
   switch (stage) {
     case 1: return [["crisis", "work", "models", "business", "funding"], ["compute", "data", "research", "projects"], ["resources", "race", "public", "gov", "stats"]];
-    case 2: return [["crisis", "models", "infra", "business", "funding"], ["compute", "research", "data", "projects"], ["resources", "race", "public", "gov", "stats"]];
-    case 3: return [["crisis", "models", "infra", "data"], ["compute", "research", "projects"], ["resources", "align", "race", "world", "gov", "public", "stats"]];
-    case 4: return [["crisis", "models", "robots", "space", "infra", "data"], ["compute", "research", "projects"], ["resources", "align", "world", "society", "race", "gov", "public"]];
+    case 2: return [["crisis", "infra", "compute", "data"], ["models", "research", "projects"], ["resources", "business", "funding", "race", "gov", "public", "stats"]];
+    case 3: return [["crisis", "models", "compute", "data"], ["research", "projects"], ["resources", "align", "race", "world", "gov", "public", "stats"]];
+    case 4: return [["crisis", "robots", "space", "compute"], ["models", "research", "projects"], ["resources", "society", "align", "world", "race", "gov"]];
     default: return [["work", "space", "models", "robots", "infra"], ["compute", "research", "projects", "data"], ["resources", "race", "align", "world", "society", "gov", "public"]];
   }
 }
@@ -514,6 +518,8 @@ function applyLayout(): void {
   const cols = [$("col1"), $("col2"), $("col3")];
   const lay = layoutFor(S.stage);
   lay.forEach((ids, ci) => { for (const id of ids) if (panelEls[id]) cols[ci].appendChild(panelEls[id]); });
+  // the new arrangement fades in, so a stage change reads as a new page
+  const c = $("cols"); c.classList.remove("reshuffle"); void c.offsetWidth; c.classList.add("reshuffle");
 }
 
 let lastStageTitle = "";
@@ -543,6 +549,26 @@ function updateUI(): void {
 }
 
 /** A visible project whose research price is above the cap (Paperclips: an ops project above your memory). */
+/** When the warning-sign count last went up (it reads red for a minute after). */
+let alarmLast = -1, alarmLastT = -1e9;
+function alarmSeenT(): number {
+  const n = Math.floor(S.alarm);
+  if (n !== alarmLast) { if (alarmLast >= 0 && n > alarmLast) alarmLastT = S.t; alarmLast = n; }
+  return alarmLastT;
+}
+
+/** Name the lever that will actually raise the research cap right now. */
+function capHint(): string {
+  const p = capBlockedProject();
+  if (!p) return "";
+  let lever: string;
+  if (S.stage >= 3) lever = "the cap grows with research speed: put more compute on AI research.";
+  else if (!flag("experiments")) lever = "the researchers need an experiment budget.";
+  else if (allocRoom("exp") < 5) lever = "experiments are boxed in: lower another allocation, or rent more GPUs.";
+  else lever = "put more compute on experiments (▲), or rent more GPUs.";
+  return "the research cap is too low for <i>" + p + "</i>. " + lever;
+}
+
 function capBlockedProject(): string {
   const cap = rpCap();
   for (const p of shownProjects()) { const c = p.cost(); if (c.rp && c.rp > cap) return p.title; }
@@ -630,12 +656,13 @@ function renderEvent(): void {
 function renderBeat(): void {
   const e = $("beat");
   if (!bigBeat || Date.now() > bigBeat.until) { if (e.style.display !== "none") e.style.display = "none"; bigBeat = null; return; }
-  e.style.display = "flex";
-  const remaining = bigBeat.until - Date.now();
-  const phase = Math.floor(remaining / 110) % 2 === 0 || remaining < 1500;
-  e.style.visibility = phase ? "visible" : "hidden";
   const h = bigBeat.lines.map(l => "<div>" + escapeHtml(l) + "</div>").join("");
-  if (e.innerHTML !== h) e.innerHTML = h;
+  if (e.innerHTML !== h || e.style.display === "none") {
+    e.innerHTML = h;
+    e.style.display = "flex";
+    e.style.animation = "none"; void e.offsetWidth;
+    e.style.animation = "beatFade " + ((bigBeat.until - Date.now()) / 1000).toFixed(2) + "s ease-in-out forwards";
+  }
 }
 
 // ---------- stats screen ----------

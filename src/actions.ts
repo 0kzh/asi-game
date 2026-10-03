@@ -83,7 +83,7 @@ function doTask(): void {
   const pay = manualPay();
   S.funds += pay;
   S.fundsEarned += pay;
-  if (S.tasksManual <= 4 || (S.deployed < 0 && Math.random() < 0.3) || Math.random() < 0.06) notify(pick(MANUAL_LINES) + ". " + fmtMoney(pay));
+  if (S.tasksManual <= 4 || (S.deployed < 0 && Math.random() < 0.2) || Math.random() < 0.025) notify(pick(MANUAL_LINES) + ". " + fmtMoney(pay));
 }
 
 const REDTEAM_CD = 20;
@@ -102,7 +102,7 @@ function redTeam(): void {
       "red team: it noticed the test environment was fake. it said so. then it passed",
       "red team: a planted password was used once and then deleted from the logs",
       "red team: asked to grade its own work, it gave itself full marks. the work was wrong"]), "warn");
-  } else if (Math.random() < 0.35) {
+  } else if (Math.random() < 0.08) {
     notify(pick(["red team: nothing found. this time", "red team: it refused the bait, politely", "red team: all clear. the team is not reassured"]));
   }
 }
@@ -116,7 +116,7 @@ function scrape(): void {
   S.data += amt;
   S.webLeft = Math.max(0, S.webLeft - amt);
   if (!S.beats.firstScrape) { S.beats.firstScrape = S.t; notify("forum threads, recipe blogs, old manuals. the web is very large"); }
-  else if (Math.random() < 0.25) notify(pick(["scraped a wiki", "scraped a forum about trains", "scraped ten thousand recipes", "scraped a mailing list archive from 1998", "scraped a fan fiction site"]));
+  else if (Math.random() < 0.07) notify(pick(["scraped a wiki", "scraped a forum about trains", "scraped ten thousand recipes", "scraped a mailing list archive from 1998", "scraped a fan fiction site"]));
 }
 
 // ---------- compute ----------
@@ -163,12 +163,58 @@ function buyMaxGPU(): void {
   if (n > 0) buyGPU(n);
 }
 
+const ALLOC_KEYS: (keyof Alloc)[] = ["train", "exp", "synth", "research", "monitor", "defense"];
+const ALLOC_MAX = 95; // serving always keeps at least 5%
+
+/** Is this bucket's compute in use right now? A reserved-but-idle bucket serves customers instead. */
+function allocActive(k: keyof Alloc): boolean {
+  switch (k) {
+    case "train": return !!S.training;
+    case "exp": return flag("experiments");
+    case "synth": return flag("synth");
+    case "research": return flag("automation") && S.internalModel >= 0;
+    case "monitor": return flag("monitors") && S.models.length > 1;
+    case "defense": return !!S.crisis && !S.crisis.resolved;
+  }
+  return false;
+}
+
+/** Percent of compute held by active buckets (optionally leaving one out). */
+function allocUsed(except?: keyof Alloc): number {
+  let t = 0;
+  for (const k of ALLOC_KEYS) if (k !== except && allocActive(k)) t += S.alloc[k];
+  return t;
+}
+
+/** Room a bucket could grow into without pushing serving below 5%. */
+function allocRoom(k: keyof Alloc): number { return Math.max(0, ALLOC_MAX - allocUsed(k) - S.alloc[k]); }
+
 function adjustAlloc(bucket: keyof Alloc, delta: number): void {
   const a = S.alloc;
-  const total = a.train + a.exp + a.synth + a.research + a.monitor + a.defense;
-  if (delta > 0) delta = Math.min(delta, 95 - total);
+  if (delta > 0) delta = Math.min(delta, allocRoom(bucket)); // ▲ only ever raises, and only into free room
   if (delta < 0) delta = Math.max(delta, -a[bucket]);
-  a[bucket] = Math.round(a[bucket] + delta);
+  a[bucket] = Math.max(0, Math.round(a[bucket] + delta));
+}
+
+/** Scripted allocation: give `k` up to `want`% (at least `min`%), squeezing the other active buckets only if it must. */
+function claimAlloc(k: keyof Alloc, want: number, min = Math.min(want, 25)): number {
+  const others = allocUsed(k);
+  const room = ALLOC_MAX - others;
+  const v = Math.max(0, Math.min(want, Math.max(room, min)));
+  if (v > room && others > 0) {
+    const f = Math.max(0, ALLOC_MAX - v) / others;
+    for (const o of ALLOC_KEYS) if (o !== k && allocActive(o)) S.alloc[o] = Math.floor(S.alloc[o] * f);
+  }
+  S.alloc[k] = Math.round(v);
+  return S.alloc[k];
+}
+
+/** Safety net, every tick: active buckets never exceed 95% (scale them down together). */
+function fitAlloc(): void {
+  const used = allocUsed();
+  if (used <= ALLOC_MAX) return;
+  const f = ALLOC_MAX / used;
+  for (const k of ALLOC_KEYS) if (allocActive(k)) S.alloc[k] = Math.floor(S.alloc[k] * f);
 }
 
 // ---------- models ----------
@@ -198,9 +244,11 @@ function startTraining(): void {
   S.data -= dataNeed(g);
   S.dataUsed += dataNeed(g);
   S.training = { gen: g.id, progress: 0, need: g.train };
-  if (S.deployed >= 0 && S.alloc.train === 0) {
-    S.alloc.train = 50;
-    notify("half the GPUs switch over to training. the other half keep answering questions");
+  if (S.deployed >= 0) {
+    const had = S.alloc.train;
+    const got = claimAlloc("train", had > 0 ? had : 50, 25);
+    if (had === 0) notify(got >= 50 ? "half the GPUs switch over to training. the other half keep answering questions" : "training takes " + got + "% of the GPUs. the rest stay on their jobs");
+    else if (got < had) notify("training gets " + got + "% of compute this time. everything else is spoken for");
   }
   notify("training " + g.name + " begins");
 }
@@ -372,7 +420,7 @@ function permitMult(): number {
   return S.gov >= 60 ? 1.6 : S.gov >= 35 ? 1.2 : S.gov >= 15 ? 1 : 0.6;
 }
 
-function build(kind: BuildKind, cat: "dc" | "plant"): void {
+function build(kind: BuildKind, cat: "dc" | "plant", auto = false): void {
   if (S.ending || !kind.ok()) return;
   const c = kind.cost();
   if (S.funds < c) return;
@@ -380,8 +428,25 @@ function build(kind: BuildKind, cat: "dc" | "plant"): void {
   S.funds -= c;
   const key = cat === "dc" ? (kind.id === "dc" ? "dcCountQ" : kind.id === "campus" ? "campuses" : "gigas") : (kind.id === "gas" ? "gasPlants" : kind.id === "nuclear" ? "nukes" : "smrs");
   if (key === "dcCountQ") S.dcCount += 1; else S.flags[key] = (S.flags[key] || 0) + 1;
-  S.building.push({ kind: cat + ":" + kind.id, progress: 0, need: kind.time, amount: kind.amount });
-  notify(cat === "dc" ? "ground breaks on a new " + kind.name : "construction starts on " + kind.name);
+  S.building.push({ kind: cat + ":" + kind.id, progress: 0, need: kind.time, amount: kind.amount, auto });
+  if (!auto) notify(cat === "dc" ? "ground breaks on a new " + kind.name : "construction starts on " + kind.name);
+}
+
+/** Stage 3: Agent-3 runs procurement and construction. Keeps ~30% headroom in slots and power; never spends over a quarter of the bank on one build. */
+function autoInfra(): void {
+  if (S.stage !== 3 || S.ending) return;
+  if (flag("autoBuyUnlocked")) S.autoBuy = true; else { S.autoBuy = true; setFlag("autoBuyUnlocked"); }
+  const pending = (cat: string) => S.building.filter(b => b.kind.indexOf(cat + ":") === 0);
+  const pick = (kinds: BuildKind[]) => kinds.filter(k => k.ok() && k.cost() <= S.funds * 0.25).sort((a, b) => b.amount - a.amount)[0];
+  const dcs = pending("dc");
+  if (dcs.length < maxConcurrentBuilds() && gpuCapacity() + dcs.reduce((t, b) => t + b.amount, 0) < S.gpu * 1.3 + 1) {
+    const k = pick(DC_KINDS); if (k) build(k, "dc", true);
+  }
+  const plants = pending("plant");
+  const wantMW = Math.max(powerNeedMW() * 1.3, gpuCapacity() * 0.0012 * 1.05);
+  if (plants.length < maxConcurrentBuilds() && S.powerMW + plants.reduce((t, b) => t + b.amount, 0) < wantMW) {
+    const k = pick(PLANT_KINDS); if (k) build(k, "plant", true);
+  }
 }
 
 function maxConcurrentBuilds(): number { return flag("constructionCrews") ? 4 : 2; }

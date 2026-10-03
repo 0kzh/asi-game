@@ -78,12 +78,9 @@ function split(): Split {
   const out: Split = { train: 0, exp: 0, synth: 0, research: 0, monitor: 0, defense: 0, serve: 0 };
   // Before anything is deployed, every GPU trains (there's nothing else to do with it).
   if (S.training && S.deployed < 0) { out.train = g; return out; }
-  if (S.training) out.train = g * a.train / 100;
-  if (flag("experiments")) out.exp = g * a.exp / 100;
-  if (flag("synth")) out.synth = g * a.synth / 100;
-  if (flag("automation") && S.internalModel >= 0) out.research = g * a.research / 100;
-  if (flag("monitors") && S.models.length > 1) out.monitor = g * (a.monitor) / 100;
-  if (S.crisis && !S.crisis.resolved) out.defense = g * a.defense / 100;
+  const used0 = allocUsed();
+  const scale = used0 > 100 ? 100 / used0 : 1; // never hand out more than every GPU
+  for (const k of ALLOC_KEYS) if (allocActive(k)) out[k] = g * a[k] / 100 * scale;
   const used = out.train + out.exp + out.synth + out.research + out.monitor + out.defense;
   out.serve = Math.max(0, g - used);
   if (S.deployed < 0) out.serve = 0;
@@ -169,10 +166,15 @@ function netIncome(): number { return revenue() - salaries() - ubiCost() + robot
 
 /** Stage 2: humans with AI copilots (AI 2027: Agent-1 ≈ 1.5x, Agent-2 ≈ 3x). Stage 3+: the AIs do it themselves. */
 function aiAssist(): number {
-  if (S.stage !== 2) return 1;
-  const c = capOf(deployed());
-  return Math.max(1, Math.pow(c / 80, 2));
+  if (S.stage < 2) return 1;
+  if (S.stage >= 3) { // frozen at automation: the humans keep their copilots, then fade
+    if (!S.flags.assistS3) S.flags.assistS3 = Math.min(25, copilotBoost()); // saves from before this existed
+    return S.flags.assistS3;
+  }
+  return copilotBoost();
 }
+
+function copilotBoost(): number { return clamp(Math.pow(capOf(deployed()) / 80, 2), 1, 40); }
 
 /** Raw human research, before any AI help. Human researchers are your best source of progress… until they aren't. */
 function humanRaw(): number {
@@ -199,7 +201,7 @@ function rpRate(): number { return humanRP() + aiRP(); }
 /** Paperclips' memory: the research cap. Early it's experiment compute; once the AIs do research, it scales with them. */
 function rpCap(): number {
   const exp = split().exp * perf();
-  return 100 + S.rpCapBonus + exp * 40 + (S.stage >= 3 ? 300 * rpRate() : 0);
+  return 100 + S.rpCapBonus + exp * 40 + (S.stage >= 3 ? 2500 * rpRate() : 0);
 }
 
 /** AI 2027's "AI R&D progress multiplier": total progress relative to unaided humans. */

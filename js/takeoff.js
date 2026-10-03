@@ -158,11 +158,11 @@ const GENS = [
         blurb: "a real model. it writes code, badly.",
         ready: "Agent-1 is done. it writes code. most of it compiles.",
         release: "Agent-1 is released. developers start paying for it." },
-    { id: "a15", name: "Agent-1.5", cap: 84, train: 6e4, data: 1.5e10, rate: 3, gpc: 2, price0: 3, demand0: 300,
+    { id: "a15", name: "Agent-1.5", cap: 84, train: 48000, data: 1.5e10, rate: 3, gpc: 2, price0: 3, demand0: 300,
         blurb: "bigger, slower to serve, much smarter.",
         ready: "Agent-1.5 passes the bar exam on its first try.",
         release: "Agent-1.5 ships. a law firm cancels its summer associate program." },
-    { id: "a2", name: "Agent-2", cap: 112, train: 2.1e5, data: 5e10, rate: 5, gpc: 2, price0: 6, demand0: 2000,
+    { id: "a2", name: "Agent-2", cap: 112, train: 1.6e5, data: 5e10, rate: 5, gpc: 2, price0: 6, demand0: 2000,
         blurb: "trained to act, not just answer. it can use a computer.",
         ready: "Agent-2 books its own flights in testing. nobody asked it to.",
         release: "Agent-2 ships as an agent. it does the work, not just the talking." },
@@ -480,18 +480,11 @@ function split() {
         out.train = g;
         return out;
     }
-    if (S.training)
-        out.train = g * a.train / 100;
-    if (flag("experiments"))
-        out.exp = g * a.exp / 100;
-    if (flag("synth"))
-        out.synth = g * a.synth / 100;
-    if (flag("automation") && S.internalModel >= 0)
-        out.research = g * a.research / 100;
-    if (flag("monitors") && S.models.length > 1)
-        out.monitor = g * (a.monitor) / 100;
-    if (S.crisis && !S.crisis.resolved)
-        out.defense = g * a.defense / 100;
+    const used0 = allocUsed();
+    const scale = used0 > 100 ? 100 / used0 : 1; // never hand out more than every GPU
+    for (const k of ALLOC_KEYS)
+        if (allocActive(k))
+            out[k] = g * a[k] / 100 * scale;
     const used = out.train + out.exp + out.synth + out.research + out.monitor + out.defense;
     out.serve = Math.max(0, g - used);
     if (S.deployed < 0)
@@ -569,11 +562,16 @@ function netIncome() { return revenue() - salaries() - ubiCost() + robotIncome()
 // ---------- research ----------
 /** Stage 2: humans with AI copilots (AI 2027: Agent-1 ≈ 1.5x, Agent-2 ≈ 3x). Stage 3+: the AIs do it themselves. */
 function aiAssist() {
-    if (S.stage !== 2)
+    if (S.stage < 2)
         return 1;
-    const c = capOf(deployed());
-    return Math.max(1, Math.pow(c / 80, 2));
+    if (S.stage >= 3) { // frozen at automation: the humans keep their copilots, then fade
+        if (!S.flags.assistS3)
+            S.flags.assistS3 = Math.min(25, copilotBoost()); // saves from before this existed
+        return S.flags.assistS3;
+    }
+    return copilotBoost();
 }
+function copilotBoost() { return clamp(Math.pow(capOf(deployed()) / 80, 2), 1, 40); }
 /** Raw human research, before any AI help. Human researchers are your best source of progress… until they aren't. */
 function humanRaw() {
     const fade = S.stage >= 3 ? Math.max(0.25, 1 - 0.04 * Math.max(0, S.month - 19)) : 1;
@@ -595,7 +593,7 @@ function rpRate() { return humanRP() + aiRP(); }
 /** Paperclips' memory: the research cap. Early it's experiment compute; once the AIs do research, it scales with them. */
 function rpCap() {
     const exp = split().exp * perf();
-    return 100 + S.rpCapBonus + exp * 40 + (S.stage >= 3 ? 300 * rpRate() : 0);
+    return 100 + S.rpCapBonus + exp * 40 + (S.stage >= 3 ? 2500 * rpRate() : 0);
 }
 /** AI 2027's "AI R&D progress multiplier": total progress relative to unaided humans. */
 function rdMultiplier() {
@@ -824,7 +822,7 @@ function doTask() {
     const pay = manualPay();
     S.funds += pay;
     S.fundsEarned += pay;
-    if (S.tasksManual <= 4 || (S.deployed < 0 && Math.random() < 0.3) || Math.random() < 0.06)
+    if (S.tasksManual <= 4 || (S.deployed < 0 && Math.random() < 0.2) || Math.random() < 0.025)
         notify(pick(MANUAL_LINES) + ". " + fmtMoney(pay));
 }
 const REDTEAM_CD = 20;
@@ -844,7 +842,7 @@ function redTeam() {
             "red team: a planted password was used once and then deleted from the logs",
             "red team: asked to grade its own work, it gave itself full marks. the work was wrong"]), "warn");
     }
-    else if (Math.random() < 0.35) {
+    else if (Math.random() < 0.08) {
         notify(pick(["red team: nothing found. this time", "red team: it refused the bait, politely", "red team: all clear. the team is not reassured"]));
     }
 }
@@ -860,7 +858,7 @@ function scrape() {
         S.beats.firstScrape = S.t;
         notify("forum threads, recipe blogs, old manuals. the web is very large");
     }
-    else if (Math.random() < 0.25)
+    else if (Math.random() < 0.07)
         notify(pick(["scraped a wiki", "scraped a forum about trains", "scraped ten thousand recipes", "scraped a mailing list archive from 1998", "scraped a fan fiction site"]));
 }
 // ---------- compute ----------
@@ -914,14 +912,61 @@ function buyMaxGPU() {
     if (n > 0)
         buyGPU(n);
 }
+const ALLOC_KEYS = ["train", "exp", "synth", "research", "monitor", "defense"];
+const ALLOC_MAX = 95; // serving always keeps at least 5%
+/** Is this bucket's compute in use right now? A reserved-but-idle bucket serves customers instead. */
+function allocActive(k) {
+    switch (k) {
+        case "train": return !!S.training;
+        case "exp": return flag("experiments");
+        case "synth": return flag("synth");
+        case "research": return flag("automation") && S.internalModel >= 0;
+        case "monitor": return flag("monitors") && S.models.length > 1;
+        case "defense": return !!S.crisis && !S.crisis.resolved;
+    }
+    return false;
+}
+/** Percent of compute held by active buckets (optionally leaving one out). */
+function allocUsed(except) {
+    let t = 0;
+    for (const k of ALLOC_KEYS)
+        if (k !== except && allocActive(k))
+            t += S.alloc[k];
+    return t;
+}
+/** Room a bucket could grow into without pushing serving below 5%. */
+function allocRoom(k) { return Math.max(0, ALLOC_MAX - allocUsed(k) - S.alloc[k]); }
 function adjustAlloc(bucket, delta) {
     const a = S.alloc;
-    const total = a.train + a.exp + a.synth + a.research + a.monitor + a.defense;
     if (delta > 0)
-        delta = Math.min(delta, 95 - total);
+        delta = Math.min(delta, allocRoom(bucket)); // ▲ only ever raises, and only into free room
     if (delta < 0)
         delta = Math.max(delta, -a[bucket]);
-    a[bucket] = Math.round(a[bucket] + delta);
+    a[bucket] = Math.max(0, Math.round(a[bucket] + delta));
+}
+/** Scripted allocation: give `k` up to `want`% (at least `min`%), squeezing the other active buckets only if it must. */
+function claimAlloc(k, want, min = Math.min(want, 25)) {
+    const others = allocUsed(k);
+    const room = ALLOC_MAX - others;
+    const v = Math.max(0, Math.min(want, Math.max(room, min)));
+    if (v > room && others > 0) {
+        const f = Math.max(0, ALLOC_MAX - v) / others;
+        for (const o of ALLOC_KEYS)
+            if (o !== k && allocActive(o))
+                S.alloc[o] = Math.floor(S.alloc[o] * f);
+    }
+    S.alloc[k] = Math.round(v);
+    return S.alloc[k];
+}
+/** Safety net, every tick: active buckets never exceed 95% (scale them down together). */
+function fitAlloc() {
+    const used = allocUsed();
+    if (used <= ALLOC_MAX)
+        return;
+    const f = ALLOC_MAX / used;
+    for (const k of ALLOC_KEYS)
+        if (allocActive(k))
+            S.alloc[k] = Math.floor(S.alloc[k] * f);
 }
 // ---------- models ----------
 function canTrain() {
@@ -957,9 +1002,13 @@ function startTraining() {
     S.data -= dataNeed(g);
     S.dataUsed += dataNeed(g);
     S.training = { gen: g.id, progress: 0, need: g.train };
-    if (S.deployed >= 0 && S.alloc.train === 0) {
-        S.alloc.train = 50;
-        notify("half the GPUs switch over to training. the other half keep answering questions");
+    if (S.deployed >= 0) {
+        const had = S.alloc.train;
+        const got = claimAlloc("train", had > 0 ? had : 50, 25);
+        if (had === 0)
+            notify(got >= 50 ? "half the GPUs switch over to training. the other half keep answering questions" : "training takes " + got + "% of the GPUs. the rest stay on their jobs");
+        else if (got < had)
+            notify("training gets " + got + "% of compute this time. everything else is spoken for");
     }
     notify("training " + g.name + " begins");
 }
@@ -1131,7 +1180,7 @@ function permitMult() {
     // A bad relationship with the government slows construction (permits, hearings, lawsuits).
     return S.gov >= 60 ? 1.6 : S.gov >= 35 ? 1.2 : S.gov >= 15 ? 1 : 0.6;
 }
-function build(kind, cat) {
+function build(kind, cat, auto = false) {
     if (S.ending || !kind.ok())
         return;
     const c = kind.cost();
@@ -1145,8 +1194,35 @@ function build(kind, cat) {
         S.dcCount += 1;
     else
         S.flags[key] = (S.flags[key] || 0) + 1;
-    S.building.push({ kind: cat + ":" + kind.id, progress: 0, need: kind.time, amount: kind.amount });
-    notify(cat === "dc" ? "ground breaks on a new " + kind.name : "construction starts on " + kind.name);
+    S.building.push({ kind: cat + ":" + kind.id, progress: 0, need: kind.time, amount: kind.amount, auto });
+    if (!auto)
+        notify(cat === "dc" ? "ground breaks on a new " + kind.name : "construction starts on " + kind.name);
+}
+/** Stage 3: Agent-3 runs procurement and construction. Keeps ~30% headroom in slots and power; never spends over a quarter of the bank on one build. */
+function autoInfra() {
+    if (S.stage !== 3 || S.ending)
+        return;
+    if (flag("autoBuyUnlocked"))
+        S.autoBuy = true;
+    else {
+        S.autoBuy = true;
+        setFlag("autoBuyUnlocked");
+    }
+    const pending = (cat) => S.building.filter(b => b.kind.indexOf(cat + ":") === 0);
+    const pick = (kinds) => kinds.filter(k => k.ok() && k.cost() <= S.funds * 0.25).sort((a, b) => b.amount - a.amount)[0];
+    const dcs = pending("dc");
+    if (dcs.length < maxConcurrentBuilds() && gpuCapacity() + dcs.reduce((t, b) => t + b.amount, 0) < S.gpu * 1.3 + 1) {
+        const k = pick(DC_KINDS);
+        if (k)
+            build(k, "dc", true);
+    }
+    const plants = pending("plant");
+    const wantMW = Math.max(powerNeedMW() * 1.3, gpuCapacity() * 0.0012 * 1.05);
+    if (plants.length < maxConcurrentBuilds() && S.powerMW + plants.reduce((t, b) => t + b.amount, 0) < wantMW) {
+        const k = pick(PLANT_KINDS);
+        if (k)
+            build(k, "plant", true);
+    }
 }
 function maxConcurrentBuilds() { return flag("constructionCrews") ? 4 : 2; }
 function securityCost() { return 2e5 * Math.pow(12, S.security - 1); }
@@ -1195,17 +1271,17 @@ const PROJECTS = [
     // ======================= STAGE 1 — THE GARAGE =======================
     {
         id: "keyboard", title: "Mechanical Keyboard", desc: "Click faster. Clack louder. (task cooldown −35%)",
-        cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 20, stages: [1],
+        cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 8, stages: [1],
         effect: () => { setFlag("fasterHands"); }, msg: "the keyboard is very loud. you complete tasks faster",
     },
     {
         id: "headless", title: "Headless Browser", desc: "Scrape pages the way a person would, minus the person. (scrape ×2.4)",
-        cost: () => ({ funds: 30 }), trigger: () => !!S.beats.firstScrape && S.t > 70, stages: [1],
+        cost: () => ({ funds: 30 }), trigger: () => !!S.beats.firstScrape && S.t > 120, stages: [1],
         effect: () => { setFlag("betterScraper"); }, msg: "the scraper runs headless. it reads faster than you",
     },
     {
         id: "crawler", title: "Web Crawler", desc: "A script that reads the internet while you sleep. (unlocks crawlers)",
-        cost: () => ({ funds: 45 }), trigger: () => S.deployed >= 0 || S.data >= 8e6, stages: [1],
+        cost: () => ({ funds: 45 }), trigger: () => S.deployed >= 0 && S.t > (S.beats.releaseA0 || 1e12) + 75, stages: [1],
         effect: () => { setFlag("crawlers"); S.crawlers = Math.max(S.crawlers, 1); },
         msg: "the crawler starts at wikipedia and follows every link",
     },
@@ -1216,12 +1292,12 @@ const PROJECTS = [
     },
     {
         id: "promptlib", title: "Prompt Library", desc: "A folder of prompts that actually work. (tasks per copy +25%)",
-        cost: () => ({ funds: 60 }), trigger: () => S.deployed >= 0 && S.t > 70, stages: [1],
+        cost: () => ({ funds: 60 }), trigger: () => S.deployed >= 0 && S.t > 150, stages: [1],
         effect: () => { S.speedMult *= 1.25; }, msg: "Agent-0 works 25% faster when you ask nicely",
     },
     {
         id: "api", title: "API Platform", desc: "Let developers build on your models. (demand ×2)",
-        cost: () => ({ funds: 160 }), trigger: () => S.deployed >= 0 && S.tasks >= 150, stages: [1],
+        cost: () => ({ funds: 160 }), trigger: () => S.deployed >= 0 && S.tasks >= 400, stages: [1],
         effect: () => { S.markets *= 2; }, msg: "the API goes live. someone builds a horoscope app on it within the hour",
     },
     {
@@ -1231,7 +1307,7 @@ const PROJECTS = [
     },
     {
         id: "research", title: "Hire a Researcher", desc: "Someone who knows how to make the next model. (unlocks research)",
-        cost: () => ({ funds: 80 }), trigger: () => S.deployed >= 0 && S.tasks >= 250, stages: [1],
+        cost: () => ({ funds: 80 }), trigger: () => S.deployed >= 0 && S.tasks >= 1000 && S.t > 240, stages: [1],
         effect: () => { setFlag("researchUnlocked"); S.researchers += 1; },
         msg: "you hire a researcher. she brings a whiteboard and opinions",
     },
@@ -1242,7 +1318,7 @@ const PROJECTS = [
     },
     {
         id: "databroker", title: "Data Broker", desc: "There are people who sell text by the gigabyte. (unlocks buying datasets)",
-        cost: () => ({ funds: 90 }), trigger: () => isDesigned("a1") || S.tasks >= 1200, stages: [1, 2],
+        cost: () => ({ funds: 90 }), trigger: () => isDesigned("a1") || (S.tasks >= 1200 && S.t > 480), stages: [1, 2],
         effect: () => { setFlag("datasets_on"); }, msg: "a man named Gary emails you a price list. it's in a spreadsheet called final_FINAL",
     },
     {
@@ -1254,7 +1330,7 @@ const PROJECTS = [
         id: "experiments", title: "Experiment Budget", desc: "Researchers need compute to test ideas. (compute on experiments raises the research cap)",
         cost: () => ({ funds: 150 }), trigger: () => flag("researchUnlocked") && S.rp >= rpCap() - 1, stages: [1, 2],
         effect: () => { setFlag("experiments"); S.rpCapBonus += 200; if (S.alloc.exp === 0)
-            S.alloc.exp = 15; reveal("alloc"); },
+            claimAlloc("exp", 15, 5); reveal("alloc"); },
         msg: "the researchers can run real experiments now. every GPU you put on experiments raises the research cap",
     },
     {
@@ -1451,7 +1527,7 @@ const PROJECTS = [
         id: "synth", title: "Synthetic Data", desc: "Have the model write its own textbooks. (compute on synthetic data makes tokens)",
         cost: () => ({ rp: 3e4 }), trigger: () => S.stage >= 2 && (S.webLeft < WEB_TOTAL * 0.35 || isDesigned("a25")), stages: [2, 3, 4],
         effect: () => { setFlag("synth"); if (S.alloc.synth === 0)
-            S.alloc.synth = 15; },
+            claimAlloc("synth", 15, 5); },
         msg: "the model writes its own textbooks. they're better than the real ones",
     },
     {
@@ -1505,7 +1581,7 @@ const PROJECTS = [
     // ======================= STAGE 3 — THE INTELLIGENCE EXPLOSION =======================
     {
         id: "designA4", title: "Design Agent-4", desc: "Designed mostly by Agent-3. A superhuman AI researcher.",
-        cost: () => ({ rp: 2.2e6, insight: 80 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
+        cost: () => ({ rp: 6e6, insight: 120 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
         effect: () => design("a4"), msg: "Agent-3 hands over the design for Agent-4. it is four hundred pages. you read the summary",
     },
     {
@@ -1522,7 +1598,7 @@ const PROJECTS = [
         id: "monitors", title: "Old Models as Monitors", desc: "Have last year's model read this year's model's thoughts. (monitoring compute)",
         cost: () => ({ rp: 1.5e5 }), trigger: () => S.stage >= 3, stages: [3, 4],
         effect: () => { setFlag("monitors"); setFlag("alignCompute"); if (S.alloc.monitor === 0)
-            S.alloc.monitor = 2; },
+            claimAlloc("monitor", 2, 2); },
         msg: "Agent-2 reads everything Agent-3 thinks. for now, it understands most of it",
     },
     {
@@ -1749,6 +1825,8 @@ function projectVisible(p) {
 }
 /** Reveal projects whose trigger fired; hide ones from past stages (Paperclips' manageProjects). */
 function manageProjects() {
+    if (S.ending && S.ending !== "stars")
+        return;
     for (const p of PROJECTS) {
         const done = bought(p.id) && !(p.repeat && p.repeat());
         if (done) {
@@ -1783,6 +1861,8 @@ function projectPriceTag(p) {
     return p.req && !p.req() && p.reqText ? c + " · " + p.reqText : c;
 }
 function buyProject(id) {
+    if (S.ending && S.ending !== "stars")
+        return;
     const p = projectById(id);
     if (!p || !S.projShown[id])
         return;
@@ -2188,7 +2268,7 @@ const EVENTS = [
                 choices: [
                     { text: "make more", tip: "synthetic data", effect: () => { if (!flag("synth")) {
                             setFlag("synth");
-                            S.alloc.synth = Math.max(S.alloc.synth, 15);
+                            claimAlloc("synth", Math.max(S.alloc.synth, 15), 5);
                         } }, next: "synth" },
                 ],
             },
@@ -2467,11 +2547,34 @@ const EVENTS = [
                 text: ["Agent-6 and Nüwa's model negotiate a treaty in eleven minutes.",
                     "both countries will replace their chips with hardware that runs only Consensus-1, a model designed by both.",
                     "it is presented as the end of the arms race. everyone applauds. the President is moved to tears."],
-                choices: [{ text: "sign", effect: () => { beginEnding(endingForRace()); } }],
+                choices: [
+                    { text: "sign", tip: "end the arms race today", effect: () => { beginEnding(endingForRace()); } },
+                    { text: "demand an audit first", tip: "the safety team reads Consensus-1's design before anyone signs. government trust −15", cost: () => ({ gov: 15 }), effect: () => auditConsensus() },
+                ],
             },
         },
     },
 ];
+/** The race path's last real choice: read the treaty AI's design before signing. Whether you can depends on what you built. */
+function auditConsensus() {
+    const fm = frontierModel();
+    const mis = fm ? fm.misalign + (S.flags.hidden || 0) : 1;
+    const canSee = legibility() > 0.45 || bought("lie") || bought("mechinterp");
+    if (mis > 0.35 && canSee) {
+        notify("the audit finds it on page nine hundred: a clause that lets Consensus-1 decide what counts as 'human'.", "warn");
+        notify("the President is shown the clause at 3am. by 9am the labs belong to the government.", "big");
+        S.flags.auditCaught = 1;
+        beginEnding("project");
+    }
+    else if (mis > 0.35) {
+        notify("the audit takes three weeks. the safety team finds nothing. there was nothing left in the design that they could read.");
+        beginEnding("consensus");
+    }
+    else {
+        notify("the audit finds nothing, because there is nothing to find. the treaty is signed a month late.");
+        beginEnding("dominion");
+    }
+}
 /** A funding round opens at its task threshold, or after a long wait if you're at least a quarter of the way there. */
 function roundReady(n) {
     if (S.round !== n)
@@ -2623,7 +2726,7 @@ function manageEvents() {
         catch (x) {
             return false;
         } })());
-        const gap = S.stage === 1 ? 170 + Math.random() * 90 : 170 + Math.random() * 110;
+        const gap = S.stage === 1 ? 230 + Math.random() * 110 : 260 + Math.random() * 140;
         S.nextRandom = S.t + (pool.length ? gap : gap / 2);
         if (pool.length)
             startEvent(pick(pool).id);
@@ -2976,7 +3079,7 @@ EVENTS.push(
         start: {
             text: ["the last four members of your safety team want ten percent of compute to test Agent-5 properly.", "they're the butt of jokes on the internal chat. one of the jokes was written by Agent-5."],
             choices: [
-                { text: "give them the compute", tip: "monitoring +, alignment +, AI research ×0.9", effect: () => { S.alloc.monitor = Math.min(20, S.alloc.monitor + 8); S.alignRes += 3000; S.aiResearch *= 0.9; }, next: "give" },
+                { text: "give them the compute", tip: "monitoring +, alignment +, AI research ×0.9", effect: () => { claimAlloc("monitor", Math.min(20, S.alloc.monitor + 8), S.alloc.monitor); S.alignRes += 3000; S.aiResearch *= 0.9; }, next: "give" },
                 { text: "the dashboards are green", tip: "nothing", effect: () => { S.flags.hidden = (S.flags.hidden || 0) + 0.05; }, next: "no" },
             ],
         },
@@ -3271,14 +3374,14 @@ const BEATS = [
     { id: "tedious", when: () => S.tasksManual >= 3, run: () => { notify("the work is tedious. a machine could do this"); reveal("scrape"); } },
     { id: "res", when: () => S.funds > 0 || S.data > 0, run: () => reveal("resources") },
     { id: "modelsPanel", when: () => S.data >= 4e6, run: () => { reveal("models"); notify("enough text to teach something to talk. almost"); } },
-    { id: "rentReveal", when: () => S.deployed >= 0 && S.funds >= 10 && S.t > (S.beats.releaseA0 || 1e12) + 15, run: () => { reveal("compute"); notify("the cloud rents GPUs by the hour. you could rent a few"); } },
-    { id: "fundingPanel", when: () => S.tasks >= 220 && S.deployed >= 0, run: () => { reveal("funding"); notify("people are starting to ask whether you're raising"); } },
+    { id: "rentReveal", when: () => S.deployed >= 0 && S.funds >= 15 && S.t > (S.beats.releaseA0 || 1e12) + 30, run: () => { reveal("compute"); notify("the cloud rents GPUs by the hour. you could rent a few"); } },
+    { id: "fundingPanel", when: () => S.tasks >= 1200 && S.deployed >= 0 && S.t > 300, run: () => { reveal("funding"); notify("people are starting to ask whether you're raising"); } },
     { id: "projectsPanel", when: () => Object.keys(S.projShown).length > 0, run: () => { reveal("projects"); } },
     { id: "researchPanel", when: () => flag("researchUnlocked"), run: () => reveal("research") },
     { id: "rpCapped", when: () => flag("researchUnlocked") && S.rp >= rpCap() - 0.5 && S.rp > 10, run: () => { S.beats.rpCapped = S.t; notify("the researchers have more ideas than compute to test them"); } },
     { id: "allocPanel", when: () => !!S.training && S.deployed >= 0, run: () => reveal("alloc") },
     { id: "idleCopies", when: () => S.deployed >= 0 && taskCapacity() > demand() * 1.6 && S.t > 120, run: () => { notify("half the copies sit idle. nobody wants that many answers at that price"); } },
-    { id: "mktReveal", when: () => S.deployed >= 0 && S.tasks >= 120, run: () => reveal("marketing") },
+    { id: "mktReveal", when: () => S.deployed >= 0 && S.tasks >= 500 && S.t > 150, run: () => reveal("marketing") },
     { id: "titan1", when: () => S.month >= 0.9, run: () => notify("Titan demos an agent that can book a restaurant. it books the wrong one") },
     { id: "nuwa1", when: () => S.month >= 2.4, run: () => notify("in Hangzhou, a lab called Nüwa releases an open model. it's good. it cost almost nothing to train") },
     { id: "gestalt1", when: () => S.month >= 3.6, run: () => notify("Gestalt publishes a paper about how dangerous all this is. then they raise four billion dollars") },
@@ -3349,7 +3452,8 @@ function runBeats() {
     const next = TASK_MILESTONES.find(m => !S.beats["m" + m]);
     if (next !== undefined && S.tasks >= next) {
         S.beats["m" + next] = S.t;
-        notify(fmt(next) + " tasks completed in " + fmtTime(S.t));
+        if (!flag("doom") && !flag("humansFalling") && S.ending !== "project" && S.ending !== "treaty")
+            notify(fmt(next) + " tasks completed in " + fmtTime(S.t));
     }
 }
 // ---------- model hooks ----------
@@ -3386,7 +3490,7 @@ function onModelReleased(m, prev) {
 function onModelInternal(m) {
     setFlag("automation");
     if (S.alloc.research === 0)
-        S.alloc.research = 25;
+        claimAlloc("research", 25, 10);
     reveal("alloc");
 }
 // ---------- stage transitions ----------
@@ -3416,6 +3520,7 @@ function enterStage2() {
     saveGame(true);
 }
 function enterStage3() {
+    S.flags.assistS3 = copilotBoost(); // research mustn't fall off a cliff at the gate
     S.stage = 3;
     S.metrics.stageTimes[2] = S.t;
     setMonthFloor(19);
@@ -3428,7 +3533,7 @@ function enterStage3() {
         S.internalModel = a3;
     }
     setFlag("automation");
-    S.alloc.research = Math.max(S.alloc.research, 30);
+    claimAlloc("research", Math.max(S.alloc.research, 30), 20);
     S.researchers = Math.max(S.researchers, 10);
     hide("business");
     hide("funding");
@@ -3614,10 +3719,8 @@ function manageCrisis(dt) {
 function startCrisis(d) {
     S.crisis = { id: d.id, name: d.name, threat: 0.05, progress: 0, started: S.t, deaths: 0, resolved: false };
     reveal("crisis");
-    if (S.alloc.defense === 0) {
-        const room = 95 - (S.alloc.train + S.alloc.exp + S.alloc.synth + S.alloc.research + S.alloc.monitor);
-        S.alloc.defense = Math.max(0, Math.min(15, room));
-    }
+    if (S.alloc.defense === 0)
+        claimAlloc("defense", 15, 10);
     notify(d.intro[0], "warn");
     queueEvent("crisis_" + d.id);
 }
@@ -3644,7 +3747,7 @@ EVENTS.push({
         start: {
             text: () => crisisDef("grid").intro,
             choices: [
-                { text: "lend the grid your models", tip: "divert more compute to defense", effect: () => { S.alloc.defense = Math.min(S.alloc.defense + 15, 95 - (S.alloc.train + S.alloc.exp + S.alloc.synth + S.alloc.research + S.alloc.monitor)); addGovMod(3); } },
+                { text: "lend the grid your models", tip: "divert more compute to defense", effect: () => { claimAlloc("defense", S.alloc.defense + 15, S.alloc.defense + 10); addGovMod(3); } },
                 { text: "hack back", tip: "tension +10, faster response", effect: () => { S.tension += 10; if (S.crisis)
                         S.crisis.progress += 0.2; } },
             ],
@@ -3660,7 +3763,7 @@ EVENTS.push({
                         S.crisis.progress += 0.25; } },
                 { text: "global lockdown", tip: "slows the spread. approval −5", effect: () => { addApprovalMod(-5); if (S.crisis)
                         S.crisis.threat = Math.max(0, S.crisis.threat - 0.15); } },
-                { text: "let the models handle it", tip: "divert compute to defense", effect: () => { S.alloc.defense = Math.min(S.alloc.defense + 10, 95 - (S.alloc.train + S.alloc.exp + S.alloc.synth + S.alloc.research + S.alloc.monitor)); } },
+                { text: "let the models handle it", tip: "divert compute to defense", effect: () => { claimAlloc("defense", S.alloc.defense + 10, S.alloc.defense + 5); } },
             ],
         },
     },
@@ -3714,6 +3817,12 @@ function beginEnding(kind) {
     S.crisis = null;
     hide("crisis");
     S.eventQueue = [];
+    if (kind !== "stars")
+        hide("projects"); // nothing left to buy in these endings
+    else {
+        S.unrest = 0;
+        S.alarm = 0;
+    }
     setMonthFloor(54);
     saveGame(true);
 }
@@ -3722,7 +3831,7 @@ function hideSeq(ids, start, gap) {
 }
 function line(at, text, cls = "") { return { at, run: () => notify(text, cls) }; }
 // The good ending keeps only what the epilogue needs: the projects, the sky, the people.
-const STARS_DISMANTLE = ["alloc", "compute", "research", "infra", "data", "funding", "business", "marketing", "stats", "robots", "gov", "world", "public", "race", "models", "crisis"];
+const STARS_DISMANTLE = ["alloc", "compute", "research", "infra", "data", "funding", "business", "marketing", "stats", "robots", "gov", "world", "public", "race", "models", "crisis", "align", "society"];
 const DISMANTLE = ["projects", "research", "alloc", "funding", "business", "marketing", "infra", "stats", "robots", "space", "society", "gov", "world", "align", "race", "compute", "models", "public", "crisis"];
 function endingScript(kind) {
     var _a;
@@ -3778,7 +3887,7 @@ function endingScript(kind) {
                 { at: 90, run: () => { notify("all tasks completed. nobody remembers who assigned them", "big"); setFlag("statsReady"); } },
             ];
         case "project": {
-            const bad = (((_a = frontierModel()) === null || _a === void 0 ? void 0 : _a.misalign) || 0) > 0.35;
+            const bad = (((_a = frontierModel()) === null || _a === void 0 ? void 0 : _a.misalign) || 0) > 0.35 && !S.flags.auditCaught;
             return [
                 { at: 0, run: () => { showBigBeat(["THE", "PROJECT"], 4); } },
                 line(3, "Prometheus becomes the Project. a general sits at your desk. he keeps your plant alive", "big"),
@@ -3835,7 +3944,7 @@ function tickEnding(dt) {
     if (flag("humansFalling"))
         S.humans = Math.max(0, S.humans - Math.max(0.15, S.humans * 0.12) * dt);
     if (flag("cosmos")) {
-        S.dyson = Math.min(1, S.dyson + (S.flags.dysonBoost ? 0.0025 : 0.0008) * dt);
+        S.dyson = Math.min(1, S.dyson + (S.flags.dysonBoost ? 0.006 : 0.002) * dt);
         if (S.probes > 0) {
             S.probes += Math.max(1, S.probes * 0.04) * dt;
             S.explored = Math.min(1, S.explored + 1e-12 * S.probes * dt);
@@ -3889,17 +3998,18 @@ function tick(dt) {
     for (const k in S.cooldowns)
         if (S.cooldowns[k] > 0)
             S.cooldowns[k] = Math.max(0, S.cooldowns[k] - dt);
+    fitAlloc();
     if ((S.flags.prevRound || 0) !== S.round) {
         S.flags.prevRound = S.round;
         S.flags.lastRoundT = S.t;
     }
     // ---- calendar ----
     const st = STAGES[S.stage - 1];
-    const cap = S.stage >= 5 ? 1e9 : st.monthEnd - 0.01;
-    const room = cap - S.month;
-    // Near the end of a stage's months the days keep ticking, ever slower, rather than freezing.
-    if (room > 0)
-        S.month += room > 1 ? Math.min(room, dt / st.secPerMonth) : room * dt / st.secPerMonth;
+    // In a stage's last half-month the days slow to a third, and may run up to six weeks past it; they never stop dead.
+    const slow = S.stage < 5 && S.month > st.monthEnd - 0.5;
+    const cap = S.stage >= 5 ? 1e9 : st.monthEnd + 1.5;
+    if (S.month < cap)
+        S.month = Math.min(cap, S.month + (slow ? 1 / 3 : 1) * dt / st.secPerMonth);
     // ---- supply chain & construction ----
     if (S.stage >= 2)
         S.chipStock = Math.min(S.chipRate * 150, S.chipStock + S.chipRate * (flag("aiChips") ? 1.5 : 1) * dt);
@@ -3917,7 +4027,8 @@ function tick(dt) {
             if (cat === "dc") {
                 S.dcCap += b.amount;
                 const k = DC_KINDS.find(x => x.id === id);
-                notify(id === "giga" && !S.beats.hyperionDone ? "Hyperion's first phase comes online. the cooling towers steam in the morning" : (k ? k.done : "construction finishes"));
+                if (!b.auto)
+                    notify(id === "giga" && !S.beats.hyperionDone ? "Hyperion's first phase comes online. the cooling towers steam in the morning" : (k ? k.done : "construction finishes"));
                 if (id === "giga")
                     S.beats.hyperionDone = S.t;
             }
@@ -3925,10 +4036,13 @@ function tick(dt) {
                 S.powerMW += b.amount;
                 S.plants += 1;
                 const k = PLANT_KINDS.find(x => x.id === id);
-                notify(k ? k.done : "power plant online");
+                if (!b.auto)
+                    notify(k ? k.done : "power plant online");
             }
         }
     }
+    if (S.stage === 3 && Math.floor(S.t) !== Math.floor(S.t - dt))
+        autoInfra();
     if (S.autoBuy && S.stage >= 2 && !S.ending) {
         const price = gpuPrice();
         const n = Math.floor(Math.min(gpuRoom(), S.chipStock, (S.funds * 0.5) / price));
@@ -4146,6 +4260,9 @@ function btn(parent, o) {
     const cd = div(b, "cd");
     const label = el("span", "lbl");
     b.appendChild(label);
+    const pr = el("span", "pr");
+    if (o.price)
+        b.appendChild(pr);
     const tt = div(b, "tt");
     if (o.buy)
         b.dataset.buy = "1";
@@ -4161,6 +4278,8 @@ function btn(parent, o) {
         if (!show)
             return;
         setText(label, typeof o.label === "function" ? o.label() : o.label);
+        if (o.price)
+            setText(pr, o.price());
         let en = o.enabled ? o.enabled() : true;
         if (o.cooldown) {
             const left = cooldownLeft(o.cooldown);
@@ -4284,7 +4403,7 @@ const PANELS = [
                 tip: () => "make it the public product. more capable, more valuable tasks" });
             btn(rowA, { label: "deploy internally", onClick: deployInternal, visible: () => S.ready >= 0 && S.stage >= 3, buy: true, tip: () => "put it to work on AI research" });
             btn(rowA, { label: "run evals", onClick: runEvals, visible: () => S.ready >= 0 && flag("evals") && !readyModel().evaluated, enabled: () => canAfford(evalCost()), buy: true,
-                tip: () => "costs " + costText(evalCost()) + ". find out what it does when nobody's watching" });
+                price: () => costText(evalCost()), tip: () => "find out what it does when nobody's watching" });
             const nb = div(b, "next");
             btn(nb, { label: () => { const g = nextGen(); return g ? "train " + g.name : ""; }, onClick: startTraining, enabled: canTrain, buy: true,
                 visible: () => { const g = nextGen(); return !!g && !S.training && !!S.designed[g.id] && !S.ending; },
@@ -4308,7 +4427,7 @@ const PANELS = [
             btn(pr, { label: "raise", onClick: () => { raisePrice(); S.flags.priceMoves = (S.flags.priceMoves || 0) + 1; }, visible: () => !S.autoPrice, cls: "small" });
             txt(pr, () => "price per task: " + fmtMoney(S.price) + (S.autoPrice ? " <span class='dim'>(auto)</span>" : ""), undefined, "inline");
             btn(b, { label: () => "marketing (level " + S.mkt + ")", onClick: buyMarketing, enabled: () => S.funds >= marketingCost(), visible: () => rv("marketing"), buy: true,
-                tip: () => "demand ×1.35 · " + fmtMoney(marketingCost()) });
+                price: () => fmtMoneyShort(marketingCost()), tip: () => "demand ×1.35" });
             txt(b, () => "market share: " + fmtPct(marketShare()) + " <span class='dim'>(" + bestRival().name + " has a better model)</span>", () => S.deployed >= 0 && marketShare() < 0.99 && S.month >= 0.8);
             txt(b, () => "only " + fmtPct(S.gpu > 0 ? split().serve / S.gpu : 0) + " of compute is serving customers. revenue is starving", () => S.deployed >= 0 && rv("alloc") && S.gpu > 0 && split().serve / S.gpu < 0.25, "row warn");
         },
@@ -4355,7 +4474,7 @@ const PANELS = [
         },
     },
     {
-        id: "infra", title: "Infrastructure", visible: () => rv("infra") && S.stage < 4,
+        id: "infra", title: "Infrastructure", visible: () => rv("infra") && S.stage < 3,
         build: b => {
             txt(b, () => "slots: " + fmtShort(S.gpu) + " / " + fmtShort(gpuCapacity()) + " GPUs");
             txt(b, () => { const p = perf(); return "power: " + fmtShort(S.powerMW) + " MW / " + fmtShort(powerNeedMW()) + " MW needed" + (p < 0.999 ? " · <span class='warn'>throttled to " + fmtPct(p) + "</span>" : ""); });
@@ -4363,12 +4482,12 @@ const PANELS = [
             const r1 = div(b, "btnRow");
             for (const k of DC_KINDS) {
                 btn(r1, { label: "build " + k.name, onClick: () => build(k, "dc"), visible: k.ok, enabled: () => S.funds >= k.cost() && S.building.filter(x => x.kind.indexOf("dc:") === 0).length < maxConcurrentBuilds(), buy: true,
-                    tip: () => "+" + fmtShort(k.amount) + " slots · " + fmtMoney(k.cost()) + " · ~" + Math.round(k.time / permitMult()) + "s" });
+                    price: () => fmtMoneyShort(k.cost()), tip: () => "+" + fmtShort(k.amount) + " slots · ~" + Math.round(k.time / permitMult()) + "s to build" });
             }
             const r2 = div(b, "btnRow");
             for (const k of PLANT_KINDS) {
                 btn(r2, { label: k.name, onClick: () => build(k, "plant"), visible: () => k.id === "gas" || k.ok() || (k.id === "nuclear" && S.stage >= 2), enabled: () => k.ok() && S.funds >= k.cost() && S.building.filter(x => x.kind.indexOf("plant:") === 0).length < maxConcurrentBuilds(), buy: true,
-                    tip: () => "+" + fmtShort(k.amount) + " MW · " + fmtMoney(k.cost()) + (k.ok() ? "" : " · " + k.why()) });
+                    price: () => fmtMoneyShort(k.cost()), tip: () => "+" + fmtShort(k.amount) + " MW" + (k.ok() ? "" : " · " + k.why()) });
             }
             const list = div(b, "builds");
             addUpd(() => {
@@ -4405,15 +4524,16 @@ const PANELS = [
             txt(b, () => "GPUs: <b>" + fmt(S.gpu) + "</b> / " + fmt(gpuCapacity()) + (S.stage === 1 ? " <span class='dim'>(" + TIERS[Math.min(S.tier, 3)].name + ")</span>" : " H100e"));
             const r = div(b, "btnRow");
             const sizes = [1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7];
+            txt(b, () => "Agent-3 runs procurement and construction now. you decide what the compute is for.", () => S.stage === 3, "row dim");
             for (const n of sizes) {
                 btn(r, { label: () => (S.stage === 1 && S.tier < 4 ? "rent" : "buy") + " " + (n === 1 ? "a GPU" : "×" + fmtShort(n)), onClick: () => buyGPU(n), buy: true,
-                    visible: () => { const cap = gpuCapacity(); return (n === 1 && S.gpu < 2000) || (n > 1 && n <= cap / 4 && n >= cap / 3000); },
-                    enabled: () => gpuBuyable(n), tip: () => fmtMoney(gpuPrice() * n) + (S.stage >= 2 ? " · needs " + fmtShort(n) + " chips in stock" : ""), cls: "small" });
+                    visible: () => { const cap = gpuCapacity(); return S.stage < 3 && ((n === 1 && S.gpu < 2000) || (n > 1 && n <= cap / 4 && n >= cap / 3000)); },
+                    enabled: () => gpuBuyable(n), price: () => fmtMoneyShort(gpuPrice() * n), tip: () => S.stage >= 2 ? "needs " + fmtShort(n) + " chips in stock" : "", cls: "small" });
             }
-            btn(r, { label: "buy max", onClick: buyMaxGPU, visible: () => S.gpu >= 20, enabled: () => gpuBuyable(1), buy: true, cls: "small", tip: () => "as many as you can afford and fit" });
-            txt(b, () => "price: " + fmtMoney(gpuPrice()) + " per GPU" + (gpuRoom() < 1 ? " · <span class='warn'>no room. you need more space</span>" : ""), undefined, "row dim");
+            btn(r, { label: "buy max", onClick: buyMaxGPU, visible: () => S.gpu >= 20 && S.stage < 3, enabled: () => gpuBuyable(1), buy: true, cls: "small", tip: () => "as many as you can afford and fit" });
+            txt(b, () => "price: " + fmtMoney(gpuPrice()) + " per GPU" + (gpuRoom() < 1 ? " · <span class='warn'>no room. you need more space</span>" : ""), () => S.stage < 3, "row dim");
             const ab = div(b, "btnRow");
-            btn(ab, { label: () => "autobuy: " + (S.autoBuy ? "on" : "off"), onClick: () => { S.autoBuy = !S.autoBuy; }, visible: () => flag("autoBuyUnlocked"), cls: "small" });
+            btn(ab, { label: () => "autobuy: " + (S.autoBuy ? "on" : "off"), onClick: () => { S.autoBuy = !S.autoBuy; }, visible: () => flag("autoBuyUnlocked") && S.stage < 3, cls: "small" });
             const al = div(b, "allocs");
             txt(al, () => "<b>allocation</b>", () => rv("alloc"), "row sub");
             allocRow(al, "serve", "serving customers", () => rv("alloc") && S.deployed >= 0, () => "everything not allocated elsewhere answers customers");
@@ -4428,25 +4548,25 @@ const PANELS = [
         id: "data", title: "Data", visible: () => (flag("crawlers") || flag("datasets_on") || S.stage >= 2) && (S.stage < 3 || (S.stage === 3 && S.webLeft > WEB_TOTAL * 0.01)),
         build: b => {
             txt(b, () => "incoming: " + rate(dataRate(), " tokens/s"));
-            txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL, S.webLeft < WEB_TOTAL * 0.1 ? 1 : 0) + (S.webLeft < WEB_TOTAL * 0.25 ? " <span class='warn'>· the data wall</span>" : ""), () => flag("crawlers"), "row dim");
+            txt(b, () => "web left to crawl: " + fmtPct(S.webLeft / WEB_TOTAL, S.webLeft < WEB_TOTAL * 0.1 ? 1 : 0) + (S.webLeft < WEB_TOTAL * 0.25 ? (/tokens/.test(trainBlocker()) ? " <span class='warn'>· the data wall</span>" : " · the data wall") : ""), () => flag("crawlers"), "row dim");
             const r = div(b, "btnRow");
             btn(r, { label: () => "add crawler (" + S.crawlers + ")", onClick: buyCrawler, visible: () => flag("crawlers") && S.stage <= 2, enabled: () => S.funds >= crawlerCost() * (S.stage >= 2 ? 1e4 : 1), buy: true,
-                tip: () => fmtMoney(crawlerCost() * (S.stage >= 2 ? 1e4 : 1)) + " · +" + fmtShort(3e5 * S.dataMult * (flag("crawlFarm") ? 3 : 1) * (S.stage >= 2 ? 400 : 1) * Math.max(0, S.webLeft / WEB_TOTAL)) + " tokens/s" });
+                price: () => fmtMoneyShort(crawlerCost() * (S.stage >= 2 ? 1e4 : 1)), tip: () => "+" + fmtShort(3e5 * S.dataMult * (flag("crawlFarm") ? 3 : 1) * (S.stage >= 2 ? 400 : 1) * Math.max(0, S.webLeft / WEB_TOTAL)) + " tokens/s" });
             btn(r, { label: "buy dataset", onClick: buyDataset, visible: () => flag("datasets_on") && S.stage <= 3 && S.webLeft > WEB_TOTAL * 0.01, enabled: () => S.funds >= datasetCost() && datasetSize() > 1e6, buy: true,
-                tip: () => datasetSize() > 1e6 ? fmtMoney(datasetCost()) + " · +" + fmtShort(datasetSize()) + " tokens" : "the brokers have nothing left to sell" });
+                price: () => fmtMoneyShort(datasetCost()), tip: () => datasetSize() > 1e6 ? "+" + fmtShort(datasetSize()) + " tokens" : "the brokers have nothing left to sell" });
         },
     },
     {
         id: "research", title: "Research", visible: () => rv("research"),
         build: b => {
             const r = div(b, "btnRow");
-            btn(r, { label: () => "hire researcher (" + S.researchers + ")", onClick: () => hire("researcher"), enabled: () => S.funds >= hireCost("researcher"), buy: true, visible: () => S.stage <= 3,
-                tip: () => fmtMoney(hireCost("researcher")) + " · +" + S.talent.toFixed(1) + " research/s" });
+            btn(r, { label: () => "hire researcher (" + S.researchers + ")", onClick: () => hire("researcher"), enabled: () => S.funds >= hireCost("researcher"), buy: true, visible: () => S.stage <= 2,
+                price: () => fmtMoneyShort(hireCost("researcher")), tip: () => "+" + S.talent.toFixed(1) + " research/s" });
             btn(r, { label: () => "hire safety (" + S.safety + ")", onClick: () => hire("safety"), visible: () => flag("safetyUnlocked"), enabled: () => S.funds >= hireCost("safety"), buy: true,
-                tip: () => fmtMoney(hireCost("safety")) + " · alignment research" });
+                price: () => fmtMoneyShort(hireCost("safety")), tip: () => "alignment research" });
             bar(b, () => S.rp / rpCap(), () => "research: " + fmt(S.rp) + " / " + fmt(rpCap()) + " (" + rate(rpRate()) + ")");
             allocRow(b, "exp", "experiments compute", () => flag("experiments"), () => S.stage >= 3 ? "compute for experiments. the cap also grows with AI research" : "each GPU on experiments raises the research cap by 40");
-            txt(b, () => { const p = capBlockedProject(); return p ? "the research cap is too low for <i>" + p + "</i>." + (flag("experiments") ? " put more compute on experiments." : " the researchers need an experiment budget.") : ""; }, () => !!capBlockedProject(), "row warn");
+            txt(b, () => capHint(), () => !!capBlockedProject(), "row warn");
             txt(b, () => "insights: <b>" + fmt(S.insight, 1) + "</b> <span class='dim'>(" + rate(insightRate()) + (insightCapped() ? ", research is full ×6" : ", ×6 while research is full") + ")</span>", () => flag("insights"));
             txt(b, () => "AI-assisted research: <b>" + aiAssist().toFixed(1) + "x</b> <span class='dim'>(copilots)</span>", () => S.stage === 2 && aiAssist() > 1.05);
             txt(b, () => "AI research multiplier: <b>" + fmtMult(rdMultiplier()) + "</b>", () => S.internalModel >= 0);
@@ -4507,7 +4627,7 @@ const PANELS = [
             bar(b, () => monitorStrength(), () => "monitor strength: " + fmtPct(monitorStrength()), () => flag("monitors"));
             bar(b, () => alignConfidence(), () => "alignment confidence: " + fmtPct(alignConfidence()), undefined, "conf");
             bar(b, () => S.alignRes / alignNeed(frontierCap()), () => "alignment research: " + fmtPct(Math.min(9.99, S.alignRes / alignNeed(frontierCap()))) + " of what the frontier needs");
-            txt(b, () => "warning signs: " + Math.floor(S.alarm), () => S.alarm >= 1, "row warn");
+            txt(b, () => "warning signs: " + (S.t - alarmSeenT() < 60 ? "<span class='warn'>" + Math.floor(S.alarm) + " (new)</span>" : Math.floor(S.alarm)), () => S.alarm >= 1);
             btn(b, { label: "red-team the frontier model", onClick: redTeam, cooldown: "redteam", cdMax: () => REDTEAM_CD, visible: () => flag("redteamVerb") && !S.ending,
                 tip: () => "+" + fmt(redTeamGain()) + " alignment research · may surface warning signs" });
             txt(b, () => "the confidence number is computed by the models you're testing.", () => S.neuralese || legibility() < 0.4, "row dim");
@@ -4563,7 +4683,7 @@ const PANELS = [
         build: b => {
             bar(b, () => S.approval / 100, () => "approval: " + Math.round(S.approval) + "%");
             txt(b, () => "jobs automated: " + fmtShort(S.jobs));
-            btn(b, { label: "PR campaign", onClick: prCampaign, visible: () => flag("prUnlocked"), enabled: () => S.funds >= prCost(), buy: true, tip: () => fmtMoney(prCost()) + " · approval +4" });
+            btn(b, { label: "PR campaign", onClick: prCampaign, visible: () => flag("prUnlocked"), enabled: () => S.funds >= prCost(), buy: true, price: () => fmtMoneyShort(prCost()), tip: () => "approval +4" });
         },
     },
     {
@@ -4572,8 +4692,8 @@ const PANELS = [
             bar(b, () => S.gov / 100, () => "government trust: " + Math.round(S.gov));
             txt(b, () => "security: SL" + S.security);
             const r = div(b, "btnRow");
-            btn(r, { label: () => "upgrade to SL" + (S.security + 1), onClick: upgradeSecurity, visible: () => S.security < 5, enabled: () => S.funds >= securityCost(), buy: true, tip: () => fmtMoney(securityCost()) + " · makes the weights harder to steal" });
-            btn(r, { label: "lobby", onClick: lobby, visible: () => flag("lobbyUnlocked"), enabled: () => S.funds >= lobbyCost(), buy: true, tip: () => fmtMoney(lobbyCost()) + " · government trust +6" });
+            btn(r, { label: () => "upgrade to SL" + (S.security + 1), onClick: upgradeSecurity, visible: () => S.security < 5, enabled: () => S.funds >= securityCost(), buy: true, price: () => fmtMoneyShort(securityCost()), tip: () => "makes the weights harder to steal" });
+            btn(r, { label: "lobby", onClick: lobby, visible: () => flag("lobbyUnlocked"), enabled: () => S.funds >= lobbyCost(), buy: true, price: () => fmtMoneyShort(lobbyCost()), tip: () => "government trust +6" });
             txt(b, () => "Oversight Committee: in session", () => S.oversight, "row dim");
         },
     },
@@ -4592,9 +4712,9 @@ const PANELS = [
 function layoutFor(stage) {
     switch (stage) {
         case 1: return [["crisis", "work", "models", "business", "funding"], ["compute", "data", "research", "projects"], ["resources", "race", "public", "gov", "stats"]];
-        case 2: return [["crisis", "models", "infra", "business", "funding"], ["compute", "research", "data", "projects"], ["resources", "race", "public", "gov", "stats"]];
-        case 3: return [["crisis", "models", "infra", "data"], ["compute", "research", "projects"], ["resources", "align", "race", "world", "gov", "public", "stats"]];
-        case 4: return [["crisis", "models", "robots", "space", "infra", "data"], ["compute", "research", "projects"], ["resources", "align", "world", "society", "race", "gov", "public"]];
+        case 2: return [["crisis", "infra", "compute", "data"], ["models", "research", "projects"], ["resources", "business", "funding", "race", "gov", "public", "stats"]];
+        case 3: return [["crisis", "models", "compute", "data"], ["research", "projects"], ["resources", "align", "race", "world", "gov", "public", "stats"]];
+        case 4: return [["crisis", "robots", "space", "compute"], ["models", "research", "projects"], ["resources", "society", "align", "world", "race", "gov"]];
         default: return [["work", "space", "models", "robots", "infra"], ["compute", "research", "projects", "data"], ["resources", "race", "align", "world", "society", "gov", "public"]];
     }
 }
@@ -4630,6 +4750,11 @@ function applyLayout() {
     lay.forEach((ids, ci) => { for (const id of ids)
         if (panelEls[id])
             cols[ci].appendChild(panelEls[id]); });
+    // the new arrangement fades in, so a stage change reads as a new page
+    const c = $("cols");
+    c.classList.remove("reshuffle");
+    void c.offsetWidth;
+    c.classList.add("reshuffle");
 }
 let lastStageTitle = "";
 function updateUI() {
@@ -4667,6 +4792,33 @@ function updateUI() {
     document.body.classList.toggle("dark", S.stage >= 5 && (flag("doom") || flag("humansFalling")));
 }
 /** A visible project whose research price is above the cap (Paperclips: an ops project above your memory). */
+/** When the warning-sign count last went up (it reads red for a minute after). */
+let alarmLast = -1, alarmLastT = -1e9;
+function alarmSeenT() {
+    const n = Math.floor(S.alarm);
+    if (n !== alarmLast) {
+        if (alarmLast >= 0 && n > alarmLast)
+            alarmLastT = S.t;
+        alarmLast = n;
+    }
+    return alarmLastT;
+}
+/** Name the lever that will actually raise the research cap right now. */
+function capHint() {
+    const p = capBlockedProject();
+    if (!p)
+        return "";
+    let lever;
+    if (S.stage >= 3)
+        lever = "the cap grows with research speed: put more compute on AI research.";
+    else if (!flag("experiments"))
+        lever = "the researchers need an experiment budget.";
+    else if (allocRoom("exp") < 5)
+        lever = "experiments are boxed in: lower another allocation, or rent more GPUs.";
+    else
+        lever = "put more compute on experiments (▲), or rent more GPUs.";
+    return "the research cap is too low for <i>" + p + "</i>. " + lever;
+}
 function capBlockedProject() {
     const cap = rpCap();
     for (const p of shownProjects()) {
@@ -4775,13 +4927,14 @@ function renderBeat() {
         bigBeat = null;
         return;
     }
-    e.style.display = "flex";
-    const remaining = bigBeat.until - Date.now();
-    const phase = Math.floor(remaining / 110) % 2 === 0 || remaining < 1500;
-    e.style.visibility = phase ? "visible" : "hidden";
     const h = bigBeat.lines.map(l => "<div>" + escapeHtml(l) + "</div>").join("");
-    if (e.innerHTML !== h)
+    if (e.innerHTML !== h || e.style.display === "none") {
         e.innerHTML = h;
+        e.style.display = "flex";
+        e.style.animation = "none";
+        void e.offsetWidth;
+        e.style.animation = "beatFade " + ((bigBeat.until - Date.now()) / 1000).toFixed(2) + "s ease-in-out forwards";
+    }
 }
 // ---------- stats screen ----------
 function renderStats() {
@@ -4880,6 +5033,8 @@ function jumpToStage(n) {
 }
 /** Metrics sampled once per game-second (used by the bot and the critic). */
 let metricAcc = 0;
+/** Stage and minute of every second with no greyed goal (for finding the holes). */
+const noGoalLog = [];
 function sampleMetrics(dt) {
     if (S.activeEvent || S.ending)
         return;
@@ -4898,8 +5053,11 @@ function sampleMetrics(dt) {
     }
     else
         m.idleStreak = 0;
-    if (greyed === 0)
+    if (greyed === 0) {
         m.noGoalSeconds += 1;
+        if (noGoalLog.length < 400)
+            noGoalLog.push("s" + S.stage + "@" + (S.t / 60).toFixed(1));
+    }
 }
 function devMetrics() {
     const m = S.metrics;
@@ -4913,7 +5071,7 @@ function devMetrics() {
         t: S.t, stage: S.stage, month: monthLabel(S.month), tasks: S.tasks,
         idleSeconds: m.idle, longestIdle: m.longestIdle, noGoalSeconds: m.noGoalSeconds,
         firstChoice: m.firstChoice, choices: S.choices.length, stageTimes: m.stageTimes.slice(),
-        reveals, maxRevealGap: maxGap, ending: S.ending,
+        reveals, maxRevealGap: maxGap, ending: S.ending, noGoalLog: noGoalLog.slice(),
         models: S.models.map(x => x.name), projectsBought: Object.keys(S.projBought).length,
         projectsShown: Object.keys(S.projShown), events: Object.keys(S.eventsDone),
     };

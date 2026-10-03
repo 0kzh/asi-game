@@ -8,15 +8,16 @@ function tick(dt: number): void {
   S.t += dt;
 
   for (const k in S.cooldowns) if (S.cooldowns[k] > 0) S.cooldowns[k] = Math.max(0, S.cooldowns[k] - dt);
+  fitAlloc();
 
   if ((S.flags.prevRound || 0) !== S.round) { S.flags.prevRound = S.round; S.flags.lastRoundT = S.t; }
 
   // ---- calendar ----
   const st = STAGES[S.stage - 1];
-  const cap = S.stage >= 5 ? 1e9 : st.monthEnd - 0.01;
-  const room = cap - S.month;
-  // Near the end of a stage's months the days keep ticking, ever slower, rather than freezing.
-  if (room > 0) S.month += room > 1 ? Math.min(room, dt / st.secPerMonth) : room * dt / st.secPerMonth;
+  // In a stage's last half-month the days slow to a third, and may run up to six weeks past it; they never stop dead.
+  const slow = S.stage < 5 && S.month > st.monthEnd - 0.5;
+  const cap = S.stage >= 5 ? 1e9 : st.monthEnd + 1.5;
+  if (S.month < cap) S.month = Math.min(cap, S.month + (slow ? 1 / 3 : 1) * dt / st.secPerMonth);
 
   // ---- supply chain & construction ----
   if (S.stage >= 2) S.chipStock = Math.min(S.chipRate * 150, S.chipStock + S.chipRate * (flag("aiChips") ? 1.5 : 1) * dt);
@@ -30,15 +31,16 @@ function tick(dt: number): void {
       if (cat === "dc") {
         S.dcCap += b.amount;
         const k = DC_KINDS.find(x => x.id === id);
-        notify(id === "giga" && !S.beats.hyperionDone ? "Hyperion's first phase comes online. the cooling towers steam in the morning" : (k ? k.done : "construction finishes"));
+        if (!b.auto) notify(id === "giga" && !S.beats.hyperionDone ? "Hyperion's first phase comes online. the cooling towers steam in the morning" : (k ? k.done : "construction finishes"));
         if (id === "giga") S.beats.hyperionDone = S.t;
       } else {
         S.powerMW += b.amount; S.plants += 1;
         const k = PLANT_KINDS.find(x => x.id === id);
-        notify(k ? k.done : "power plant online");
+        if (!b.auto) notify(k ? k.done : "power plant online");
       }
     }
   }
+  if (S.stage === 3 && Math.floor(S.t) !== Math.floor(S.t - dt)) autoInfra();
   if (S.autoBuy && S.stage >= 2 && !S.ending) {
     const price = gpuPrice();
     const n = Math.floor(Math.min(gpuRoom(), S.chipStock, (S.funds * 0.5) / price));

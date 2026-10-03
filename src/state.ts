@@ -14,7 +14,7 @@ interface ModelRec {
 
 interface TrainingRun { gen: string; progress: number; need: number; }
 
-interface Building { kind: string; progress: number; need: number; amount: number; }
+interface Building { kind: string; progress: number; need: number; amount: number; auto?: boolean; }
 
 interface LogLine { t: number; text: string; cls: string; }
 

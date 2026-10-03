@@ -368,7 +368,7 @@ EVENTS.push(
       start: {
         text: ["the last four members of your safety team want ten percent of compute to test Agent-5 properly.", "they're the butt of jokes on the internal chat. one of the jokes was written by Agent-5."],
         choices: [
-          { text: "give them the compute", tip: "monitoring +, alignment +, AI research ×0.9", effect: () => { S.alloc.monitor = Math.min(20, S.alloc.monitor + 8); S.alignRes += 3000; S.aiResearch *= 0.9; }, next: "give" },
+          { text: "give them the compute", tip: "monitoring +, alignment +, AI research ×0.9", effect: () => { claimAlloc("monitor", Math.min(20, S.alloc.monitor + 8), S.alloc.monitor); S.alignRes += 3000; S.aiResearch *= 0.9; }, next: "give" },
           { text: "the dashboards are green", tip: "nothing", effect: () => { S.flags.hidden = (S.flags.hidden || 0) + 0.05; }, next: "no" },
         ],
       },

@@ -29,17 +29,17 @@ const PROJECTS: Project[] = [
   // ======================= STAGE 1 — THE GARAGE =======================
   {
     id: "keyboard", title: "Mechanical Keyboard", desc: "Click faster. Clack louder. (task cooldown −35%)",
-    cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 20, stages: [1],
+    cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 8, stages: [1],
     effect: () => { setFlag("fasterHands"); }, msg: "the keyboard is very loud. you complete tasks faster",
   },
   {
     id: "headless", title: "Headless Browser", desc: "Scrape pages the way a person would, minus the person. (scrape ×2.4)",
-    cost: () => ({ funds: 30 }), trigger: () => !!S.beats.firstScrape && S.t > 70, stages: [1],
+    cost: () => ({ funds: 30 }), trigger: () => !!S.beats.firstScrape && S.t > 120, stages: [1],
     effect: () => { setFlag("betterScraper"); }, msg: "the scraper runs headless. it reads faster than you",
   },
   {
     id: "crawler", title: "Web Crawler", desc: "A script that reads the internet while you sleep. (unlocks crawlers)",
-    cost: () => ({ funds: 45 }), trigger: () => S.deployed >= 0 || S.data >= 8e6, stages: [1],
+    cost: () => ({ funds: 45 }), trigger: () => S.deployed >= 0 && S.t > (S.beats.releaseA0 || 1e12) + 75, stages: [1],
     effect: () => { setFlag("crawlers"); S.crawlers = Math.max(S.crawlers, 1); },
     msg: "the crawler starts at wikipedia and follows every link",
   },
@@ -50,12 +50,12 @@ const PROJECTS: Project[] = [
   },
   {
     id: "promptlib", title: "Prompt Library", desc: "A folder of prompts that actually work. (tasks per copy +25%)",
-    cost: () => ({ funds: 60 }), trigger: () => S.deployed >= 0 && S.t > 70, stages: [1],
+    cost: () => ({ funds: 60 }), trigger: () => S.deployed >= 0 && S.t > 150, stages: [1],
     effect: () => { S.speedMult *= 1.25; }, msg: "Agent-0 works 25% faster when you ask nicely",
   },
   {
     id: "api", title: "API Platform", desc: "Let developers build on your models. (demand ×2)",
-    cost: () => ({ funds: 160 }), trigger: () => S.deployed >= 0 && S.tasks >= 150, stages: [1],
+    cost: () => ({ funds: 160 }), trigger: () => S.deployed >= 0 && S.tasks >= 400, stages: [1],
     effect: () => { S.markets *= 2; }, msg: "the API goes live. someone builds a horoscope app on it within the hour",
   },
   {
@@ -65,7 +65,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "research", title: "Hire a Researcher", desc: "Someone who knows how to make the next model. (unlocks research)",
-    cost: () => ({ funds: 80 }), trigger: () => S.deployed >= 0 && S.tasks >= 250, stages: [1],
+    cost: () => ({ funds: 80 }), trigger: () => S.deployed >= 0 && S.tasks >= 1000 && S.t > 240, stages: [1],
     effect: () => { setFlag("researchUnlocked"); S.researchers += 1; },
     msg: "you hire a researcher. she brings a whiteboard and opinions",
   },
@@ -76,7 +76,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "databroker", title: "Data Broker", desc: "There are people who sell text by the gigabyte. (unlocks buying datasets)",
-    cost: () => ({ funds: 90 }), trigger: () => isDesigned("a1") || S.tasks >= 1200, stages: [1, 2],
+    cost: () => ({ funds: 90 }), trigger: () => isDesigned("a1") || (S.tasks >= 1200 && S.t > 480), stages: [1, 2],
     effect: () => { setFlag("datasets_on"); }, msg: "a man named Gary emails you a price list. it's in a spreadsheet called final_FINAL",
   },
   {
@@ -87,7 +87,7 @@ const PROJECTS: Project[] = [
   {
     id: "experiments", title: "Experiment Budget", desc: "Researchers need compute to test ideas. (compute on experiments raises the research cap)",
     cost: () => ({ funds: 150 }), trigger: () => flag("researchUnlocked") && S.rp >= rpCap() - 1, stages: [1, 2],
-    effect: () => { setFlag("experiments"); S.rpCapBonus += 200; if (S.alloc.exp === 0) S.alloc.exp = 15; reveal("alloc"); },
+    effect: () => { setFlag("experiments"); S.rpCapBonus += 200; if (S.alloc.exp === 0) claimAlloc("exp", 15, 5); reveal("alloc"); },
     msg: "the researchers can run real experiments now. every GPU you put on experiments raises the research cap",
   },
   {
@@ -284,7 +284,7 @@ const PROJECTS: Project[] = [
   {
     id: "synth", title: "Synthetic Data", desc: "Have the model write its own textbooks. (compute on synthetic data makes tokens)",
     cost: () => ({ rp: 3e4 }), trigger: () => S.stage >= 2 && (S.webLeft < WEB_TOTAL * 0.35 || isDesigned("a25")), stages: [2, 3, 4],
-    effect: () => { setFlag("synth"); if (S.alloc.synth === 0) S.alloc.synth = 15; },
+    effect: () => { setFlag("synth"); if (S.alloc.synth === 0) claimAlloc("synth", 15, 5); },
     msg: "the model writes its own textbooks. they're better than the real ones",
   },
   {
@@ -339,7 +339,7 @@ const PROJECTS: Project[] = [
   // ======================= STAGE 3 — THE INTELLIGENCE EXPLOSION =======================
   {
     id: "designA4", title: "Design Agent-4", desc: "Designed mostly by Agent-3. A superhuman AI researcher.",
-    cost: () => ({ rp: 2.2e6, insight: 80 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
+    cost: () => ({ rp: 6e6, insight: 120 }), trigger: () => S.stage === 3 && S.internalModel >= 0, stages: [3],
     effect: () => design("a4"), msg: "Agent-3 hands over the design for Agent-4. it is four hundred pages. you read the summary",
   },
   {
@@ -355,7 +355,7 @@ const PROJECTS: Project[] = [
   {
     id: "monitors", title: "Old Models as Monitors", desc: "Have last year's model read this year's model's thoughts. (monitoring compute)",
     cost: () => ({ rp: 1.5e5 }), trigger: () => S.stage >= 3, stages: [3, 4],
-    effect: () => { setFlag("monitors"); setFlag("alignCompute"); if (S.alloc.monitor === 0) S.alloc.monitor = 2; },
+    effect: () => { setFlag("monitors"); setFlag("alignCompute"); if (S.alloc.monitor === 0) claimAlloc("monitor", 2, 2); },
     msg: "Agent-2 reads everything Agent-3 thinks. for now, it understands most of it",
   },
   {
@@ -589,6 +589,7 @@ function projectVisible(p: Project): boolean {
 
 /** Reveal projects whose trigger fired; hide ones from past stages (Paperclips' manageProjects). */
 function manageProjects(): void {
+  if (S.ending && S.ending !== "stars") return;
   for (const p of PROJECTS) {
     const done = bought(p.id) && !(p.repeat && p.repeat());
     if (done) { if (S.projShown[p.id]) delete S.projShown[p.id]; continue; }
@@ -612,6 +613,7 @@ function projectPriceTag(p: Project): string {
 }
 
 function buyProject(id: string): void {
+  if (S.ending && S.ending !== "stars") return;
   const p = projectById(id);
   if (!p || !S.projShown[id]) return;
   const c = p.cost();

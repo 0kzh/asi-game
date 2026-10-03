@@ -113,3 +113,87 @@ The rubric, scored 1–10 per item:
   - small reactors.
 - Stage 3 gains a hand verb, "red-team the frontier model".
 - The PR campaign unlocks mid-stage 3.
+
+## Round 2
+
+**Score (mean of the seven items):** Takeoff 6.4, Paperclips 8.4. In round-1 terms that is roughly 45/70 against 59/70, up from 38/70. Takeoff tied on idle time, greyed goals and soft-locks. It lost on first choice (8 vs 9), cognitive load (3 vs 8), reveal cadence (4 vs 6) and stage transitions (5 vs 9).
+
+The critic's two fresh runs reached stage 2 at about 47–51 min, stage 3 at 85–89, stage 4 at 140–143 and the end screen at about 176–178 min.
+
+**Single biggest gap:** stage 3 stalled for 50–56 minutes on Design Agent-4, including 29–30 minutes with nothing new. Three causes compounded:
+
+1. Research income collapsed at the gate. The stage-2 copilot boost (24×) dropped to 1×, so research fell from about 3,600/s to 500–850/s.
+2. Entering stage 3 pushed the allocation past 95%.
+3. With the total over 95%, the ▲ arrow on experiments *lowered* it. That collapsed the research cap below the design's price for 15 minutes.
+
+**Next five problems, as ranked by the critic:**
+
+1. **The allocation bug at Agent-1's first training run.** Training plus experiments reached 130%, leaving zero serving.
+2. **An 18-minute stall in stage 1 under a misleading research-cap hint.** Red text (the data wall, warning signs) was also on screen almost permanently.
+3. **The opening firehose.** There were 10 panels and 48 numbers by 5:00, prices were only in tooltips, and the milestone card sat below the fold.
+4. **Stage gates barely reshuffled.** 11 of 12 panels stayed in place, and the only signal was a strobing word card.
+5. **Endings undercut themselves.**
+   - The race path's final choice had a single "sign" button.
+   - Projects stayed buyable during the extinction cutscene, and the task-milestone ticker kept firing.
+   - The good ending's UI showed unrest at 90 and 19 warning signs.
+
+### Fixes after round 2
+
+**Allocation**
+
+- Only buckets in use count toward the 95% cap. An idle training reservation serves customers and no longer blocks other arrows.
+- ▲ can only raise a value.
+- Scripted allocations claim room through one helper that never exceeds 95%. Training always gets at least 25%.
+- A per-tick guard keeps the total legal.
+- Regression script: `alloc_test.cjs`, 10 checks.
+
+**Stage-3 research**
+
+- The human copilot boost is frozen at its stage-2 value instead of dropping to 1×. Humans then fade under it while AI research takes over.
+- Stage-3 research now opens at about 3,760/s against the stage-2 rate of 3,390/s.
+- The stage-3 research cap is 1,000× the research rate, so it can't fall below the design's price.
+
+**Research-cap hint**
+
+- It names the lever that works for the stage.
+- Stage 1: experiments ▲ or more GPUs, or "lower another allocation" when experiments are boxed in.
+- Stage 3: put more compute on AI research.
+
+**Stage transitions**
+
+- Every gate moves panels between columns, and the new arrangement fades in. The word card fades instead of strobing.
+- Stage 2 moves compute and infrastructure left and business right.
+- In stage 3 Agent-3 runs procurement and construction itself, keeping 30% headroom without spending more than a quarter of the bank per build. The Infrastructure panel and the GPU buttons leave.
+- Stage 4 puts robots top-left.
+
+**Opening**
+
+- The cheap stage-1 unlocks are spread out to about one new thing a minute:
+  - compute 30 s after Agent-0 ships;
+  - crawlers 75 s after;
+  - marketing at 500 tasks;
+  - researchers and investors at 1,000–1,200 tasks.
+
+**Prices**
+
+- Every repeatable purchase prints its price on the button. Tooltips keep only the effect.
+
+**Calendar**
+
+- In a stage's last half-month the days slow to a third, and can run up to six weeks past the stage's end. They no longer stop dead.
+
+**Endings**
+
+- The Deal (race path) gains "demand an audit first", costing 15 government trust. Depending on legibility and misalignment, it leads to:
+  - nationalisation, with the backdoor caught;
+  - the consensus ending, with the audit finding nothing it could read;
+  - dominion, with nothing there to find.
+- In non-good endings, projects are hidden and frozen, and the milestone ticker goes quiet.
+- The good ending also dismantles Alignment and Society, and resets unrest and warning signs. Its epilogue runs about three times faster.
+
+**Noise**
+
+- Fewer "scraped a wiki" and manual-task lines; "red team: nothing found" is rare.
+- Random dialogs are spaced 230–400 s apart.
+- "The data wall" is red only while data blocks training.
+- "Warning signs" is red for a minute after the count rises.

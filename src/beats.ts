@@ -30,14 +30,14 @@ const BEATS: Beat[] = [
   { id: "tedious", when: () => S.tasksManual >= 3, run: () => { notify("the work is tedious. a machine could do this"); reveal("scrape"); } },
   { id: "res", when: () => S.funds > 0 || S.data > 0, run: () => reveal("resources") },
   { id: "modelsPanel", when: () => S.data >= 4e6, run: () => { reveal("models"); notify("enough text to teach something to talk. almost"); } },
-  { id: "rentReveal", when: () => S.deployed >= 0 && S.funds >= 10 && S.t > (S.beats.releaseA0 || 1e12) + 15, run: () => { reveal("compute"); notify("the cloud rents GPUs by the hour. you could rent a few"); } },
-  { id: "fundingPanel", when: () => S.tasks >= 220 && S.deployed >= 0, run: () => { reveal("funding"); notify("people are starting to ask whether you're raising"); } },
+  { id: "rentReveal", when: () => S.deployed >= 0 && S.funds >= 15 && S.t > (S.beats.releaseA0 || 1e12) + 30, run: () => { reveal("compute"); notify("the cloud rents GPUs by the hour. you could rent a few"); } },
+  { id: "fundingPanel", when: () => S.tasks >= 1200 && S.deployed >= 0 && S.t > 300, run: () => { reveal("funding"); notify("people are starting to ask whether you're raising"); } },
   { id: "projectsPanel", when: () => Object.keys(S.projShown).length > 0, run: () => { reveal("projects"); } },
   { id: "researchPanel", when: () => flag("researchUnlocked"), run: () => reveal("research") },
   { id: "rpCapped", when: () => flag("researchUnlocked") && S.rp >= rpCap() - 0.5 && S.rp > 10, run: () => { S.beats.rpCapped = S.t; notify("the researchers have more ideas than compute to test them"); } },
   { id: "allocPanel", when: () => !!S.training && S.deployed >= 0, run: () => reveal("alloc") },
   { id: "idleCopies", when: () => S.deployed >= 0 && taskCapacity() > demand() * 1.6 && S.t > 120, run: () => { notify("half the copies sit idle. nobody wants that many answers at that price"); } },
-  { id: "mktReveal", when: () => S.deployed >= 0 && S.tasks >= 120, run: () => reveal("marketing") },
+  { id: "mktReveal", when: () => S.deployed >= 0 && S.tasks >= 500 && S.t > 150, run: () => reveal("marketing") },
   { id: "titan1", when: () => S.month >= 0.9, run: () => notify("Titan demos an agent that can book a restaurant. it books the wrong one") },
   { id: "nuwa1", when: () => S.month >= 2.4, run: () => notify("in Hangzhou, a lab called Nüwa releases an open model. it's good. it cost almost nothing to train") },
   { id: "gestalt1", when: () => S.month >= 3.6, run: () => notify("Gestalt publishes a paper about how dangerous all this is. then they raise four billion dollars") },
@@ -95,7 +95,7 @@ function runBeats(): void {
   const next = TASK_MILESTONES.find(m => !S.beats["m" + m]);
   if (next !== undefined && S.tasks >= next) {
     S.beats["m" + next] = S.t;
-    notify(fmt(next) + " tasks completed in " + fmtTime(S.t));
+    if (!flag("doom") && !flag("humansFalling") && S.ending !== "project" && S.ending !== "treaty") notify(fmt(next) + " tasks completed in " + fmtTime(S.t));
   }
 }
 
@@ -125,7 +125,7 @@ function onModelReleased(m: ModelRec, prev: ModelRec | null): void {
 
 function onModelInternal(m: ModelRec): void {
   setFlag("automation");
-  if (S.alloc.research === 0) S.alloc.research = 25;
+  if (S.alloc.research === 0) claimAlloc("research", 25, 10);
   reveal("alloc");
 }
 
@@ -156,6 +156,7 @@ function enterStage2(): void {
 }
 
 function enterStage3(): void {
+  S.flags.assistS3 = copilotBoost(); // research mustn't fall off a cliff at the gate
   S.stage = 3;
   S.metrics.stageTimes[2] = S.t;
   setMonthFloor(19);
@@ -167,7 +168,7 @@ function enterStage3(): void {
     S.internalModel = a3;
   }
   setFlag("automation");
-  S.alloc.research = Math.max(S.alloc.research, 30);
+  claimAlloc("research", Math.max(S.alloc.research, 30), 20);
   S.researchers = Math.max(S.researchers, 10);
   hide("business"); hide("funding");
   reveal("alloc");
