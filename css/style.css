@@ -1,0 +1,240 @@
+/* Takeoff — Universal Paperclips' plain columns + A Dark Room's bordered boxes, serif type and fading log. */
+
+:root {
+  --bg: #ffffff;
+  --fg: #000000;
+  --dim: #8a8a8a;
+  --line: #000000;
+  --soft: #b2b2b2;
+  --cool: #dddddd;
+  --proj: #c8c8c8;
+  --proj-dis: #e6e6e6;
+  --warn: #8b0000;
+  --good: #2a623d;
+  --tip-bg: #ffffff;
+}
+body.dark {
+  --bg: #0d0d0d;
+  --fg: #e8e8e8;
+  --dim: #777;
+  --line: #e8e8e8;
+  --soft: #555;
+  --cool: #333;
+  --proj: #3a3a3a;
+  --proj-dis: #1e1e1e;
+  --warn: #ff6b6b;
+  --tip-bg: #111;
+}
+
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+  transition: background 3s, color 3s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#cover { position: fixed; inset: 0; background: var(--bg); z-index: 50; }
+
+#wrap {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 24px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 18px 16px 60px;
+}
+
+/* ---------- log (A Dark Room) ---------- */
+#logCol { position: relative; height: calc(100vh - 40px); overflow: hidden; }
+#log { position: sticky; top: 0; }
+.note { margin-bottom: 10px; line-height: 1.25; }
+.note.big { font-weight: bold; }
+.note.warn { color: var(--warn); }
+.note.fresh { animation: noteIn 0.6s linear; }
+@keyframes noteIn { from { opacity: 0; } }
+#logFade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 45%;
+  background: linear-gradient(rgba(255,255,255,0), var(--bg));
+  pointer-events: none;
+}
+body.dark #logFade { background: linear-gradient(rgba(13,13,13,0), var(--bg)); }
+
+/* ---------- header (Paperclips: the one number) ---------- */
+#top { margin-bottom: 14px; }
+#place { color: var(--dim); font-size: 15px; height: 18px; }
+#tasksLine { font-size: 30px; font-weight: bold; margin: 2px 0 2px; letter-spacing: 0.2px; }
+#sub { color: var(--dim); font-size: 14px; min-height: 18px; }
+#tps { margin-left: 10px; }
+
+#cols { display: grid; grid-template-columns: repeat(3, minmax(250px, 1fr)); gap: 18px; align-items: start; }
+.col { min-width: 0; }
+
+/* ---------- panels (Paperclips: bold title + rule) ---------- */
+.panel { margin-bottom: 18px; }
+.panel.fadein { animation: fadein 0.6s linear; }
+@keyframes fadein { from { opacity: 0; } }
+.ptitle { font-weight: bold; }
+.panel:not(.store) > .ptitle { border-bottom: 1px solid var(--line); padding-bottom: 2px; margin-bottom: 6px; }
+.row { margin: 3px 0; line-height: 1.3; }
+.row.dim, .dim { color: var(--dim); }
+.row.warn, .warn { color: var(--warn); }
+.row.sub { margin-top: 10px; }
+.inline { display: inline-block; vertical-align: middle; margin-left: 4px; }
+
+/* A Dark Room stores box: legend punched into the border */
+.panel.store {
+  position: relative; border: 1px solid var(--line); padding: 8px 10px 6px; margin-top: 8px;
+}
+.panel.store::before {
+  content: attr(data-legend); position: absolute; left: 8px; top: -11px; background: var(--bg); padding: 0 3px;
+}
+.storeRow { position: relative; display: flex; justify-content: space-between; line-height: 1.35; cursor: default; }
+.storeRow .tt { left: 0; top: 22px; }
+.storeRow:hover .tt:not(:empty) { display: block; }
+
+/* ---------- buttons (A Dark Room: bordered, cooldown bar, underline on hover) ---------- */
+.btnRow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.btn {
+  position: relative; display: inline-block; text-align: center; border: 1px solid var(--line);
+  min-width: 96px; padding: 4px 9px; margin: 3px 0; cursor: pointer; background: transparent; z-index: 0;
+}
+.btnRow .btn { margin: 0; }
+.btn.small { min-width: 0; padding: 2px 7px; font-size: 14px; }
+.btn:hover .lbl { text-decoration: underline; }
+.btn.disabled { border-color: var(--soft); color: var(--soft); cursor: default; }
+.btn.disabled:hover .lbl { text-decoration: none; }
+.btn .cd { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--cool); z-index: -1; }
+.btn .tt, .alloc .tt, .storeRow .tt {
+  display: none; position: absolute; left: 0; top: calc(100% + 4px); z-index: 20; min-width: 160px; max-width: 260px;
+  border: 1px solid var(--line); background: var(--tip-bg); color: var(--fg); padding: 3px 6px; font-size: 14px; text-align: left;
+  box-shadow: -1px 3px 2px rgba(0,0,0,0.35); white-space: normal;
+}
+.btn:hover .tt { display: block; }
+
+/* ---------- projects (Paperclips grey blocks) ---------- */
+.projList { display: flex; flex-direction: column; gap: 6px; }
+button.project {
+  display: block; width: 100%; text-align: left; font: inherit; font-size: 15px; color: #000;
+  background: var(--proj); border: 1px solid #000; padding: 6px 8px; cursor: pointer;
+}
+button.project:hover { border-color: rgba(0,0,0,0.3); }
+button.project:active { background: #d1d1d1; }
+button.project:disabled { background: var(--proj-dis); color: #777; border: 1px solid transparent; cursor: default; }
+body.dark button.project { color: #eee; border-color: #888; }
+button.project .pd { font-size: 13.5px; margin-top: 2px; }
+button.project.gate { border-width: 2px; }
+button.project.blink { animation: blink 0.36s steps(2, jump-none) 2; }
+@keyframes blink { 50% { visibility: hidden; } }
+
+/* ---------- allocation rows (A Dark Room workers) ---------- */
+.alloc { position: relative; display: flex; align-items: center; margin: 6px 0; padding-right: 36px; cursor: default; }
+.alloc .aKey { flex: 1; }
+.alloc .aVal { text-align: right; }
+.alloc .aSub { color: var(--dim); font-size: 13px; margin-left: 6px; display: inline-block; min-width: 42px; }
+.alloc:hover .tt:not(:empty) { display: block; }
+.arrows { position: absolute; right: 0; top: -2px; width: 32px; height: 22px; }
+.arrows div { position: absolute; width: 14px; height: 10px; cursor: pointer; }
+.arrows .up, .arrows .up2 { top: 0; }
+.arrows .dn, .arrows .dn2 { bottom: 0; }
+.arrows .up, .arrows .dn { left: 0; }
+.arrows .up2, .arrows .dn2 { right: 0; }
+.arrows .up::before, .arrows .up2::before { content: ""; position: absolute; left: 1px; bottom: 1px; border: 6px solid transparent; border-bottom-color: var(--fg); border-top-width: 0; }
+.arrows .dn::before, .arrows .dn2::before { content: ""; position: absolute; left: 1px; top: 1px; border: 6px solid transparent; border-top-color: var(--fg); border-bottom-width: 0; }
+.arrows .up2::after { content: ""; position: absolute; left: 4px; bottom: 2px; border: 3px solid transparent; border-bottom-color: var(--bg); border-top-width: 0; }
+.arrows .dn2::after { content: ""; position: absolute; left: 4px; top: 2px; border: 3px solid transparent; border-top-color: var(--bg); border-bottom-width: 0; }
+
+/* ---------- bars ---------- */
+.barRow { margin: 5px 0; }
+.barLbl { font-size: 15px; }
+.bar { height: 7px; border: 1px solid var(--line); margin-top: 2px; }
+.barFill { height: 100%; width: 0; background: var(--fg); }
+.barRow.threat .barFill { background: var(--warn); }
+.barRow.response .barFill, .barRow.conf .barFill { background: var(--good); }
+.barRow.train .barFill { background: var(--fg); transition: width 0.1s linear; }
+.next { margin-top: 8px; }
+.builds { margin-top: 6px; }
+
+/* ---------- the race ---------- */
+.lead { margin: 2px 0 6px; }
+.lrow { display: flex; justify-content: space-between; }
+.lrow.you { font-weight: bold; }
+.chartBox { margin-top: 6px; }
+.chart text { font-family: "Times New Roman", Times, serif; fill: var(--fg); }
+.chart .bench { stroke: var(--soft); stroke-dasharray: 3 3; stroke-width: 0.8; }
+.chart .benchLabel { font-size: 8.5px; fill: var(--dim); }
+.chart .grid { stroke: var(--cool); stroke-width: 0.5; }
+.chart .axis { font-size: 9px; fill: var(--dim); }
+.chart .axisLine { stroke: var(--fg); stroke-width: 0.8; }
+.chart .ours { fill: none; stroke: var(--fg); stroke-width: 2; }
+.chart .oursDot { fill: var(--fg); }
+.chart .rival { fill: none; stroke: var(--dim); stroke-width: 1; }
+.chart .rival2 { stroke-dasharray: 2 2; }
+.chart .nuwa { fill: none; stroke: var(--warn); stroke-width: 1.3; stroke-dasharray: 4 2; }
+.chart .label { font-size: 9.5px; font-weight: bold; }
+.chart .nuwaLabel { fill: var(--warn); font-weight: normal; }
+
+/* ---------- event modal (A Dark Room) ---------- */
+#eventWrap {
+  position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-start; justify-content: center;
+  background: rgba(255,255,255,0.55); padding-top: 12vh;
+}
+body.dark #eventWrap { background: rgba(0,0,0,0.6); }
+#event {
+  background: var(--bg); border: 2px solid var(--line); padding: 16px 20px 14px; width: min(480px, calc(100vw - 32px));
+  box-shadow: 0 0 0 6px var(--bg);
+}
+#eventTitle { font-size: 20px; margin-bottom: 8px; }
+#eventText p { margin: 0 0 10px; line-height: 1.35; }
+#eventButtons { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.evbtn { text-align: left; padding: 6px 10px; }
+.evtip { font-size: 13.5px; color: var(--dim); margin-top: 1px; }
+.evbtn.disabled .evtip { color: var(--soft); }
+
+/* ---------- full-screen beat (Paperclips' HypnoDrones flash) ---------- */
+#beat {
+  position: fixed; inset: 0; z-index: 40; background: #000; color: #fff; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: min(120px, 14vw); line-height: 0.95; letter-spacing: -2px; text-transform: uppercase;
+}
+
+/* ---------- end-of-run stats ---------- */
+#statsWrap { position: fixed; inset: 0; z-index: 35; background: rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; }
+#statsBox { background: var(--bg); border: 2px solid var(--line); padding: 18px 22px; width: min(420px, calc(100vw - 32px)); }
+.stitle { font-size: 24px; margin-bottom: 10px; }
+.srow { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dotted var(--soft); padding: 3px 0; }
+.srow span:last-child { text-align: right; }
+.sbtns { margin-top: 14px; }
+.sbtns span { cursor: pointer; margin-right: 14px; }
+.sbtns span:hover { text-decoration: underline; }
+
+/* ---------- menu (A Dark Room) ---------- */
+#menu { position: fixed; right: 12px; bottom: 10px; color: #666; font-size: 15px; z-index: 10; background: var(--bg); }
+#menu span { cursor: pointer; margin-left: 16px; }
+#menu span:hover { text-decoration: underline; }
+
+/* ---------- dev overlay ---------- */
+#dev {
+  position: fixed; left: 10px; bottom: 10px; z-index: 60; background: #fffbe6; color: #000; border: 1px solid #000;
+  padding: 6px 8px; font: 12px/1.4 Menlo, Consolas, monospace; max-width: 420px;
+}
+.devTitle { font-weight: bold; }
+.devRow { margin: 3px 0; }
+.devLbl { display: inline-block; width: 42px; }
+.devBtn { font: 12px Menlo, Consolas, monospace; margin: 1px 2px; cursor: pointer; }
+.devMet { margin-top: 4px; color: #333; }
+
+/* ---------- narrow screens ---------- */
+@media (max-width: 1000px) {
+  #wrap { grid-template-columns: 1fr; }
+  #logCol { height: 190px; order: 2; }
+  #main { order: 1; }
+  #cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  #cols { grid-template-columns: minmax(0, 1fr); }
+  #tasksLine { font-size: 24px; }
+}

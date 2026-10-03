@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A Garage</title>
+  <meta name="description" content="An incremental game about an AI lab racing to superintelligence, and trying to align it before it kills everyone.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="cover"></div>
+  <div id="beat" style="display:none"></div>
+
+  <div id="wrap">
+    <aside id="logCol" aria-label="event log">
+      <div id="log" aria-live="polite"></div>
+      <div id="logFade"></div>
+    </aside>
+    <main id="main">
+      <header id="top">
+        <div id="place"></div>
+        <h1 id="tasksLine">Tasks Completed: <span id="tasks">0</span></h1>
+        <div id="sub"><span id="dateLine"></span> <span id="tps"></span></div>
+      </header>
+      <div id="cols">
+        <div class="col" id="col1"></div>
+        <div class="col" id="col2"></div>
+        <div class="col" id="col3"></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="eventWrap" style="display:none">
+    <div id="event" role="dialog" aria-modal="true" aria-labelledby="eventTitle">
+      <div id="eventTitle"></div>
+      <div id="eventText"></div>
+      <div id="eventButtons"></div>
+    </div>
+  </div>
+
+  <div id="statsWrap" style="display:none"></div>
+
+  <nav id="menu">
+    <span data-act="save">save.</span>
+    <span data-act="export">export.</span>
+    <span data-act="import">import.</span>
+    <span data-act="restart">restart.</span>
+  </nav>
+
+  <div id="dev" style="display:none"></div>
+
+  <script src="js/snapshots.js" onerror="void 0"></script>
+  <script src="js/takeoff.js"></script>
+</body>
+</html>

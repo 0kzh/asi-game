@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "none",
+    "lib": ["ES2019", "DOM"],
+    "outFile": "js/takeoff.js",
+    "rootDir": "src",
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": false,
+    "removeComments": false,
+    "sourceMap": false,
+    "ignoreDeprecations": "6.0"
+  },
+  "files": [
+    "src/util.ts",
+    "src/defs.ts",
+    "src/state.ts",
+    "src/log.ts",
+    "src/econ.ts",
+    "src/actions.ts",
+    "src/projects.ts",
+    "src/events.ts",
+    "src/beats.ts",
+    "src/crisis.ts",
+    "src/endings.ts",
+    "src/tick.ts",
+    "src/chart.ts",
+    "src/ui.ts",
+    "src/dev.ts",
+    "src/main.ts"
+  ]
+}
