@@ -29,7 +29,7 @@ const PROJECTS: Project[] = [
   // ======================= STAGE 1 — THE GARAGE =======================
   {
     id: "keyboard", title: "Mechanical Keyboard", desc: "Click faster. Clack louder. (task cooldown −35%)",
-    cost: () => ({ funds: 20 }), trigger: () => S.tasksManual >= 8, stages: [1],
+    cost: () => ({ funds: 30 }), trigger: () => S.tasksManual >= 3, stages: [1],
     effect: () => { setFlag("fasterHands"); }, msg: "the keyboard is very loud. you complete tasks faster",
   },
   {
@@ -50,7 +50,7 @@ const PROJECTS: Project[] = [
   },
   {
     id: "promptlib", title: "Prompt Library", desc: "A folder of prompts that actually work. (tasks per copy +25%)",
-    cost: () => ({ funds: 60 }), trigger: () => S.deployed >= 0 && S.t > 150, stages: [1],
+    cost: () => ({ funds: 60 }), trigger: () => S.deployed >= 0, stages: [1],
     effect: () => { S.speedMult *= 1.25; }, msg: "Agent-0 works 25% faster when you ask nicely",
   },
   {
