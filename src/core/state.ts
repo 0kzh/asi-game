@@ -23,7 +23,7 @@ export function newState(seed = 1): State {
     caps: { gpus: 50, researchCap: 150, researchBonus: 0, gpuCurveStart: 0, powerGw: 0 },
     mods: {
       speedMult: 1, efficiencyMult: 1, energyEffMult: 1, demandMult: 1, refPriceMult: 1,
-      gpuPriceMult: 1, energyPriceMult: 1, energyDriftMult: 1,
+      gpuPriceMult: 1, energyPriceMult: 1, energyDriftMult: 1, rdMult: 1, findingsMult: 1,
     },
     model: {
       key: 'agent0', gen: 0, name: 'agent-0', capability: 1.2, alignment: 50, interp: 1,
@@ -35,7 +35,7 @@ export function newState(seed = 1): State {
     market: { price: 0.25, marketing: 0, productMult: 1, rivalShare: 0, lastRevenue: 0, waitlist: 0, lifetimeRevenue: 0 },
     energyMkt: { price: 120, base: 120, purchases: 0, autoBuy: false, generation: 0, spend: 0, block: 500, autoBlock: 500, decayTimer: 0 },
     pol: { gov: 0, opinion: 50, security: 1, jobsDisplaced: 0, ubi: false, riots: false, dpa: false, oversightSeat: false },
-    rival: { name: 'deepcent', capability: 1.0, released: 0 },
+    rival: { name: 'deepcent', capability: 1.0, released: 0, interest: 1 },
     projects: {},
     projectOrder: [],
     flags: {},

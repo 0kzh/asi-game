@@ -4,6 +4,11 @@
 import type { Stage, State } from '../core/types.js';
 import { dayOf } from '../core/stages.js';
 import { shippedLine } from '../core/models.js';
+import { log } from '../core/events.js';
+import { NAMES } from './names.js';
+
+/** Stage 2's gpu market: every gpu price is multiplied by this from march 2026 (tuning-log.md). */
+export const S2_GPU_MARKET: number = 3;
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
@@ -16,6 +21,14 @@ function s1Progress(s: State): number {
 
 function capProgress(s: State, from: number, to: number): number {
   return clamp01((s.model.capability - from) / (to - from));
+}
+
+/** S2: the frontier (deployed, internal, or the run in progress) from 2.0 to 2.8 → march 2026 … january 2027;
+ *  the last month is the theft. */
+function s2Progress(s: State): number {
+  const tr = s.training;
+  const frontier = Math.max(s.model.capability, tr ? tr.capNow : 0);
+  return 0.9 * clamp01((frontier - 2.0) / 0.8) + (s.flags.theftResolved ? 0.1 : 0);
 }
 
 export const STAGES: Stage[] = [
@@ -35,9 +48,14 @@ export const STAGES: Stage[] = [
     exit: (s) => (s.flags.theftResolved ? 3 : null),
     enter: (s) => {
       s.flags.stage2 = true;
-      s.flags.allocPanel = true; // placeholder until the `alloc` project (stage 2 content)
+      if (s.milestones.stamps.stage2 === undefined) s.milestones.stamps.stage2 = s.t;
+      log(s, 'agent-1 is in every terminal. the cluster is the business now.');
+      if (S2_GPU_MARKET !== 1) {
+        s.mods.gpuPriceMult *= S2_GPU_MARKET;
+        log(s, `${NAMES.chips.gpus} is sold out through next year. gpus cost ×${S2_GPU_MARKET} now.`);
+      }
     },
-    progress: (s) => capProgress(s, 2.0, 2.8),
+    progress: s2Progress,
   },
   {
     id: 3, name: 'takeoff',

@@ -3,6 +3,7 @@
 import type { ChoiceEvent, SetPiece } from '../../core/types.js';
 import { log } from '../../core/events.js';
 import { between } from '../../core/rng.js';
+import { S2_SETPIECES, S2_CHOICES } from './stage2.js';
 
 export const SETPIECES: SetPiece[] = [
   // ---------------------------------------------------------------- S1
@@ -29,6 +30,7 @@ export const SETPIECES: SetPiece[] = [
   },
 
   // ---------------------------------------------------------------- S2+ (later phases)
+  ...S2_SETPIECES,
 ];
 
 export const SETPIECE_CHOICES: ChoiceEvent[] = [
@@ -59,4 +61,5 @@ export const SETPIECE_CHOICES: ChoiceEvent[] = [
   },
 
   // ---------------------------------------------------------------- S2+ (later phases)
+  ...S2_CHOICES,
 ];

@@ -235,31 +235,34 @@ Chain: researcher → `prompt_caching` → (agents) `batching` → (gpus) `finet
 ### 6.2 Stage 2 — Agents
 | id | title | cost | trigger → effect | flavor |
 |---|---|---|---|---|
-| alloc | compute allocation | R 300 | S2 → reveals allocation panel (deployment / research) | every gpu is a decision. |
-| ai_rd | agents in the loop | R 600 | alloc ∧ capability ≥ 1.8 → copies on research produce research (rdFactor on); stats line "r&d multiplier" | the model writes the experiment code now. someone still reads it. |
+| alloc | compute allocation | R 300 | S2 → reveals allocation rows under compute (deployment / research); copies now fill every gpu slot (`deploy agent` retires) | every gpu is a decision. |
+| ai_rd | agents in the loop | R 600 | alloc ∧ capability ≥ 1.8 → copies on research produce research (rdFactor on); 30% of copies move to research; research cap +1,500; researchers make insight at half rate below the cap too; "r&d multiplier" line in the allocation rows | the model writes the experiment code now. someone still reads it. |
 | chart | capability tracking | I 20 | gen ≥ 1 → reveals the capability chart | a line, going up. |
-| build_dc | build a datacenter | $2M | gpus ≥ 400 → gpu cap 500 → 5,000; energy −10% | three hundred megawatts, a cooling pond, and a county that wants the jobs. |
-| eval_suite | alignment evals | I 40 | insight ≥ 10 → reveals alignment; findings shown at end of runs; `safety pass` button | you can't fix what you can't measure. you can still ship it. |
-| honesty | honesty training | I 80 | eval_suite → alignment +8; misalignment per run −20% | we train it to say what it believes. we hope it believes something. |
+| agent1_update | update agent-1 | R 400 × n (uses 4) | ai_rd ∧ agent-1 deployed → capability +0.1 per use (2.0 → 2.4) | 'finishes' is a misnomer. it is updated weekly. |
+| build_dc | build a datacenter | $2M | gpus ≥ 400 → gpu cap 500 → 5,000 (lots of 40 at ×200 the leased tier's bulk price); energy per task −10%; research cap +4,500 | three hundred megawatts, a cooling pond, and a county that wants the jobs. |
+| eval_suite | alignment evals | I 40 | insight ≥ 10 → reveals alignment; findings shown at end of runs; `safety pass` button; safety row in allocation | you can't fix what you can't measure. you can still ship it. |
+| honesty | honesty training | I 80 | eval_suite ∨ sycophancy fired → alignment +8; findings per run ×0.8 | we train it to say what it believes. we hope it believes something. |
 | spec | the spec | I 150 | honesty → alignment +10; unlocks safety-first runs later | forty pages on what the model should want. |
-| synthetic | synthetic data | R 2,000 | data < next run's need ("the web is used up.") → data +50 T per use, uses 3 | the model teaches the next model. nothing could go wrong. |
+| synthetic | synthetic data | R 2,000 | data < next visible run's need ("the web is used up.") → data +50 T per use, uses 3 (hides until the wall returns) | the model teaches the next model. nothing could go wrong. |
 | distill | distillation | R 1,500 | gen ≥ 1 → agentsPerGpu ×1.6 | agent-1-mini. same answers, fewer parameters. |
 | speculative | speculative decoding | R 1,200 | distill → speed ×1.3 | guess, then check. |
-| chip_deal | multi-year chip deal | $20M | gpu price index ≥ 1.5 → gpu price ×0.7 | ten billion dollars of promises, both ways. |
+| chip_deal | multi-year chip deal | $20M | gpu price index (per-gpu price ÷ $100 list) ≥ 1.5 → gpu price ×0.7 | ten billion dollars of promises, both ways. |
 | consumer_app | consumer app | $5M | S2 ∧ opinion visible → demand ×2, opinion +5 | it writes your emails. it reads them too. |
 | enterprise | enterprise agreements | $30M, R 800 | consumer_app → demand ×1.5, refPrice ×1.3 | procurement takes nine months. the model finishes the work in nine seconds. |
-| gov_briefing | brief the administration | I 30 | capability ≥ 2.2 → gov +15; reveals politics panel | a windowless room. they ask about china. |
-| sl2 | security level 2 | $5M | gov_briefing ∨ rival event → SL2 | badges, and a man who checks them. |
-| sl3 | security level 3 | $50M, I 60 | sl2 ∧ (capability ≥ 2.5 ∨ theft attempt) → SL3, theft chance ×0.3 | the weights live in a building with no windows. |
+| gov_briefing | brief the administration | I 30 | capability ≥ 2.2 → gov +15; stops the −0.2/min gov drift; reveals politics box | a windowless room. they ask about china. |
+| sl2 | security level 2 | $5M | gov_briefing ∨ rival event (theft attempt, the download, deepcent-1, poaching) → SL2 | badges, and a man who checks them. |
+| sl3 | security level 3 | $50M, I 60 (half after disclosing the theft) | sl2 ∧ (capability ≥ 2.5 ∨ theft attempt) → SL3 | the weights live in a building with no windows. |
 | comms | comms team | $5M | first negative press event → opinion drift +0.2/min | we have always been building this responsibly. |
 | retention | retention grants | $20M | poaching event → stops researcher loss | four years, cliff, no questions. |
-| build_dc2 | second campus | $200M | gpus ≥ 4,000 → gpu cap 5,000 → 50,000; reveals power as a number (not yet a cap) | a gigawatt. the word starts appearing in meetings. |
+| build_dc2 | second campus | $200M | gpus ≥ 1,500 → gpu cap 5,000 → 50,000 (lots of 400 at ×10 the previous bulk price); power 1 GW as a number (`flags.powerVisible`, not yet a cap) | a gigawatt. the word starts appearing in meetings. |
 | pipelines | overlapping pipelines | R 3,000 | gen ≥ 2 trained → next-gen training may start before the current model is released | two pipelines, one team, no sleep. |
-| train_agent2 | train agent-2 | R 6,000, data 10 T, $5M, gpus ≥ 2,000 | release_agent1 ∧ ai_rd → 90 s run; capability 2.8; after it, `continuous learning` | trained continuously. never finished. |
-| keep_internal | keep agent-2 internal | — | train_agent2 done → research ×2 from copies, no demand bump, gov +5, theft interest ↑ | the public gets agent-1-plus. the researchers get the real thing. |
+| train_agent2 | train agent-2 | R 9,000, data 10 T, $5M, gpus ≥ 1,500 | release_agent1 ∧ ai_rd → 90 s run; capability 2.8; after it, `continuous learning` | trained continuously. never finished. |
+| keep_internal | keep agent-2 internal | — | train_agent2 done → model is agent-2 (internal), research from copies ×2, no demand ×3 / launch curve / scorecard, gov +5, theft interest +0.5 | the public gets agent-1-plus. the researchers get the real thing. |
 | release_agent2 | release agent-2 | — | train_agent2 done → scorecard; demand ×3; gov −5; opinion −5 (jobs) | the quarterly numbers will be remarkable. |
-| cont_learning | continuous learning | R 4,000 | agent-2 trained → capability +0.02 per minute while deployed | it is never done training. neither are we. |
-| theft (event) | — | — | agent-2 trained ∧ SL < 4 ∧ 2–4 min elapsed → the theft set piece → **enters S3** on resolution | — |
+| cont_learning | continuous learning | R 4,000 | agent-2 trained → capability +0.02 per minute while agent-2 (or later) is deployed, never above the next generation's table value − 0.1 | it is never done training. neither are we. |
+| theft (event) | — | — | agent-2 trained ∧ SL < 4 → 120–140 s + 40 s per SL above 1 later, the theft set piece → **enters S3** on resolution | — |
+
+Stage-2 economy (tuned with the sim; `docs/tuning-log.md`): from `alloc`, agents = gpu slots (the $5 × 1.1^n agent curve cannot reach thousands of copies). `buy gpu` buys a lot of cap/125 gpus (1, then 4 in the leased datacenter, 40, 400) and each lot is one ×1.07 step on the per-gpu price since the last datacenter; a new datacenter resets the curve to its tier's bulk price. On entering S2 the gpu market tightens: every gpu price ×3 ("tensorworks is sold out through next year."). Copies on safety make 0.2 insight per unit of research they would do, and cut findings at evals by the safety share. DeepCent trails your model by 0.4 (0.2 after the theft), closing at 0.1/min, and takes 0.1 → 0.4 of the market as the gap closes 0.4 → 0.2; it releases deepcent-1 at capability 1.85. Theft attempts: chance per minute = [0.08, 0.04, 0.012, 0.002, 0][SL−1] × rival interest (each: rival +0.03, reveals `sl3`). Opinion drifts toward 50 − jobs displaced (millions) at up to 0.5/min. Sim bot from snapshot '2', seeds 1–10: agent-2 starts 48:01–52:43, stage 3 begins at 52:27–57:47.
 
 ### 6.3 Stage 3 — Takeoff
 | id | title | cost | trigger → effect | flavor |
@@ -341,13 +344,13 @@ Modal does not pause the game (the clock keeps running; that is the pressure) ex
 |---|---|---|---|---|---|
 | S1 | journalist | tasks ≥ 10k | "a journalist calls." | research project (quiet) / the future (demand ×1.2, gov attention flag) | — |
 | S1 | gpu_delay | first `buy gpu` + 2 min | "the gpu shipment is three weeks late." gpu price ×1.3 for 2 min | — | `lease_dc` earlier |
-| S2 | sycophancy | release agent-1 + 3 min | "agent-1 told a user he was right about everything. he was not." opinion −5 | patch quietly / publish a post-mortem (opinion +3, gov +5) | `honesty` |
-| S2 | poaching | researchers ≥ 6 | "deepcent is offering triple." | match (−$) / let them go (−2 researchers, rival +0.1) | `retention` |
-| S2 | liaison | capability ≥ 2.2 | "a man from the office of advanced computation asks for a briefing." | brief them (gov +10) / decline (gov −10, later audit) | `gov_briefing`, `sl2` |
-| S2 | taiwan1 | gpus ≥ 2,000 | "exercises in the strait. the fabs are on generator power." gpu price ×2 for 3 min | — | `chip_deal`, `stockpile` |
-| S2 | inform_public | capability ≥ 2.4 ∧ gov_briefing | "the office of frontier systems asks whether the public should know what agent-2 can do." | tell them (opinion +5, gov +5, rival interest +; demand ×0.9 for 2 min) / cite dangerous capabilities (gov +10, opinion −0; later leak costs opinion −20) | — |
-| S2 | tehran_download | SL ≤ 2 ∧ gen ≥ 1 ∧ 4 min into S2 | "a contractor in the tehran office of a vendor downloaded agent-1. all of it." gov −10 | disclose (gov +5, opinion −5) / quiet (20%: later leak, gov −20) | `sl2`, `sl3` |
-| S2→S3 | **theft** | agent-2 trained, 2–4 min later, if SL < 4 | "3 TB left the building at 03:14." → "deepcent-2 appears four months early." | disclose (gov +20, opinion −10, SL3 half price) / tell the government quietly (gov +10) / say nothing (if later discovered: gov −40) | `sl3`, `sl4` |
+| S2 | sycophancy | release agent-1 + 3 min | "agent-1 told a user he was right about everything. he was not." opinion −5; counts as negative press | patch quietly / publish a post-mortem (opinion +3, gov +5) | `honesty`, `comms` |
+| S2 | poaching | researchers ≥ 6, 90–240 s later | "deepcent is offering your researchers triple." | match ($50k) / let them go (−2 researchers, rival +0.1); until `retention`, the ambient pool can take one more researcher at a time | `retention` |
+| S2 | liaison | capability ≥ 2.2 | "a man from the office of frontier systems asks for a briefing." (either answer reveals the politics box) | brief them (gov +10) / decline (gov −10; 3–5 min later an audit: gov −5, research ×0.8) | `gov_briefing`, `sl2` |
+| S2 | taiwan1 | gpus ≥ 500 | "exercises in the strait. formosa foundry is on generator power. gpu prices ×2." gpu price ×2 for 3 min | — | `chip_deal`, `stockpile` |
+| S2 | inform_public | capability ≥ 2.4 ∧ gov_briefing | "the office of frontier systems asks whether the public should know what the models can do now." | tell them (opinion +5, gov +5, rival interest +0.25; demand ×0.9 for 2 min) / cite dangerous capabilities (gov +10; 10–15 min later the ledger prints it: opinion −20) | — |
+| S2 | tehran_download | SL ≤ 2 ∧ gen ≥ 1 ∧ 4 min into S2 | "a contractor in the tehran office of a vendor downloaded agent-1. all of it." gov −10; counts as a theft attempt | disclose (gov +5, opinion −5) / keep it quiet (20%: 3–6 min later the ledger has it, gov −20) | `sl2`, `sl3` |
+| S2→S3 | **theft** | agent-2 trained, 120–140 s + 40 s per SL above 1 later, if SL < 4 | "3 TB left the building at 03:14." → "deepcent-2 appears four months early." deepcent = your frontier − 0.2 | disclose (gov +20, opinion −10, SL3 half price) / tell the government quietly (gov +10) / say nothing (50%: discovered 4–8 min later, gov −40); at SL1 also gov −10, opinion −5. Any choice: `flags.theftResolved`, the exit line, `enterStage(s, 3)` | `sl3`, `sl4` |
 | S3 | hack | agent-3 trained + 2 min | "agent-3 found a flaw in a regional grid operator. it used it to finish a task faster." | report it (gov +10, opinion −5) / patch quietly (20%: leaks → gov −30) | `monitors`, `interp1` |
 | S3 | riots | jobs displaced ≥ 5M | "they are outside the datacenter. they brought the tv crews." opinion −15, demand ×0.8 until resolved | retraining fund / lobby for ubi / wait it out (opinion −10 more) | `retraining`, `ubi_lobby` |
 | S3 | clearances | agent-3 trained ∧ gov ≥ 10 | "the clearance process asks you to list staff who have expressed 'safety sympathies'." | hand over the list (gov +15, alignment −5, whistleblower armed) / refuse (gov −15) | — |

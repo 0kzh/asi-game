@@ -11,6 +11,8 @@ import type { Cost } from '../core/types.js';
 export type Actuator = (id: string) => boolean;
 
 const CLICK_TICKS = new Set([0, 3, 5, 8]); // 4 clicks per second
+/** Projects the policy decides explicitly, never by price. */
+const DECISIONS = new Set(['keep_internal', 'release_agent2']);
 
 function normCost(s: State, c: Cost): number {
   let x = 0;
@@ -63,10 +65,14 @@ export class Policy {
   second(s: State): void {
     const act = this.act;
 
-    // Modals: first available choice; training budget 50% then start.
+    // Modals: first available choice (the theft: "disclose"); training budget 50% then start.
     if (s.modal?.kind === 'choice') {
       const cur = currentScene(s);
-      const idx = cur ? cur.scene.choices.findIndex((c) => choiceEnabled(s, c)) : 0;
+      let idx = cur ? cur.scene.choices.findIndex((c) => choiceEnabled(s, c)) : 0;
+      if (cur && s.modal.eventId === 'theft') {
+        const d = cur.scene.choices.findIndex((c) => c.text === 'disclose' && choiceEnabled(s, c));
+        if (d >= 0) idx = d;
+      }
       act(`choice:${Math.max(0, idx)}`);
     }
     if (s.modal?.kind === 'training') {
@@ -75,18 +81,30 @@ export class Policy {
     }
     if (s.modal) return;
 
-    // Release immediately.
-    if (s.training?.phase === 'done') act('release');
+    // Release immediately. Agent-2: keep it internal on odd seeds, release it on even seeds.
+    if (s.training?.phase === 'done') {
+      if (s.training.key === 'agent2' && s.seed % 2 === 1) act('project:keep_internal');
+      else act('release');
+    }
 
-    // Energy: keep at least 15 s of consumption.
+    // S2 allocation: research 30% once agents are in the loop; 50% while demand fits in half the cluster.
+    if (s.flags.allocPanel) {
+      const full = capacity(s) / Math.max(0.1, s.alloc.deploy);
+      const want = !s.flags.aiRd ? 0 : demand(s) < full * 0.5 ? 0.5 : 0.3;
+      if (s.alloc.research < want - 0.05) act('alloc_research_up');
+      else if (s.alloc.research > want + 0.05) act('alloc_research_down');
+    }
+
+    // Energy: keep at least 15 s of consumption (from S2 the auto-buyer does it once bought).
     const use = s.rates.energyPerSec + (s.res.agents < 3 ? 4 * energyPerTask(s) : 0);
-    for (let i = 0; i < 20 && s.res.energy < use * 15 && s.res.funds >= energyPrice(s); i++) {
+    const manualEnergy = !(s.stage >= 2 && s.energyMkt.autoBuy) || s.res.energy <= 0;
+    for (let i = 0; i < 20 && manualEnergy && s.res.energy < use * 15 && s.res.funds >= energyPrice(s); i++) {
       if (!act('buy_energy')) break;
     }
 
-    // Cheapest affordable projects, cheapest first, while any is affordable.
+    // Cheapest affordable projects, cheapest first, while any is affordable (the agent-2 decision is made above).
     for (let i = 0; i < 10; i++) {
-      const affordable = visibleProjects(s).filter((p) => canAfford(s, p) && (s.flags.projects || p.anytime));
+      const affordable = visibleProjects(s).filter((p) => canAfford(s, p) && (s.flags.projects || p.anytime) && !DECISIONS.has(p.id));
       if (!affordable.length) break;
       affordable.sort((a, b) => normCost(s, projectCost(s, a)) - normCost(s, projectCost(s, b)));
       if (!act(`project:${affordable[0].id}`)) break;
@@ -117,10 +135,11 @@ export class Policy {
     // Marketing: when demand < capacity and it costs under half the funds.
     if (demand(s) < capacity(s) && marketingCost(s) < (s.res.funds - reserve) / 2) act('marketing');
 
-    // Headcount: 2 researchers per engineer.
+    // Headcount: 2 researchers per engineer; from S2, engineers while the research cap blocks a visible project.
+    const capBlocked = s.stage >= 2 && visibleProjects(s).some((p) => (projectCost(s, p).research ?? 0) > s.caps.researchCap);
     for (let i = 0; i < 10 && freeHeadcount(s) >= 1; i++) {
       const r = s.res.researchers, e = s.res.engineers;
-      act(r >= 2 * (e + 1) ? 'hire_engineer' : 'hire_researcher');
+      act(capBlocked || r >= 2 * (e + 1) ? 'hire_engineer' : 'hire_researcher');
     }
 
     // Price: −1 step when idle capacity > 20%, +1 step when the waitlist is > 1.5× capacity.

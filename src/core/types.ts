@@ -39,6 +39,8 @@ export interface Mods {
   gpuPriceMult: number;    // gpu price curve multiplier (lease_dc reset)
   energyPriceMult: number; // ppa
   energyDriftMult: number; // ppa
+  rdMult: number;          // multiplier on research from copies (keep_internal ×2; S2+)
+  findingsMult: number;    // multiplier on findings at evals (honesty ×0.8; S2+)
 }
 
 export interface ModelState {
@@ -123,6 +125,7 @@ export interface Rival {
   capability: number;
   stoleAt?: number;
   released: number;
+  interest: number;      // theft interest multiplier (S2+): theft chance/min = base(SL) × interest
 }
 
 export interface ProjectState {

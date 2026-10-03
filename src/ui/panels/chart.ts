@@ -57,7 +57,8 @@ function draw(s: State): void {
     ctx.strokeStyle = dark ? '#3a3b35' : '#e2e2e2';
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - 2, yy); ctx.stroke();
-    if (lastLabelY - yy >= 10 && yy >= 16) {
+    const underLegend = yy - 5 < padT + 18 && ctx.measureText(label).width > W - 8 - (padL + 150);
+    if (lastLabelY - yy >= 10 && yy >= 16 && !underLegend) {
       ctx.fillStyle = grey;
       ctx.textAlign = 'right';
       ctx.fillText(label, W - 4, yy - 5);

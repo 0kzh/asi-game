@@ -94,7 +94,12 @@ export function rdFactor(capability: number): number {
 
 export function aiResearchPerSec(s: State): number {
   if (!s.flags.aiRd) return 0;
-  return s.res.agents * s.alloc.research * rdFactor(s.model.capability);
+  return s.res.agents * s.alloc.research * rdFactor(s.model.capability) * s.mods.rdMult;
+}
+
+/** Copies on safety (S2+, the allocation panel's safety row): 0.2 insight per unit of research they would do. */
+export function safetyInsightPerSec(s: State): number {
+  return s.res.agents * s.alloc.safety * rdFactor(s.model.capability) * s.mods.rdMult * 0.2;
 }
 
 // ------------------------------------------------------------------ prices
@@ -103,10 +108,17 @@ export function agentCost(s: State): number {
   return AGENT_BASE_COST * Math.pow(AGENT_COST_GROWTH, s.res.agents);
 }
 
+/** GPUs per `buy gpu` click (a lot): 1 until the first datacenter, then cap / 125 (4, 40, 400…). */
+export function gpuBatch(s: State): number {
+  return Math.max(1, Math.round(Math.min(1e7, s.caps.gpus) / 125));
+}
+
+/** Price of one click (one lot): each lot is one ×1.07 step on the per-gpu price since the last datacenter. */
 export function gpuCost(s: State): number {
-  const n = Math.max(0, s.res.gpus - 1 - s.caps.gpuCurveStart);
+  const b = gpuBatch(s);
+  const n = Math.max(0, s.res.gpus - 1 - s.caps.gpuCurveStart) / b;
   const shock = (s.timed.gpu_delay ?? 0) > s.t ? 1.3 : 1;
-  return GPU_BASE_COST * Math.pow(GPU_COST_GROWTH, n) * s.mods.gpuPriceMult * shock;
+  return GPU_BASE_COST * b * Math.pow(GPU_COST_GROWTH, n) * s.mods.gpuPriceMult * shock;
 }
 
 export function marketingCost(s: State): number {
@@ -161,7 +173,7 @@ export function canBuyGpu(s: State): boolean {
 export function buyGpu(s: State): boolean {
   if (!canBuyGpu(s)) return false;
   s.res.funds -= gpuCost(s);
-  s.res.gpus += 1;
+  s.res.gpus = Math.min(s.caps.gpus, s.res.gpus + gpuBatch(s));
   if (!s.milestones.stamps.firstGpu) s.milestones.stamps.firstGpu = s.t;
   return true;
 }
@@ -243,6 +255,7 @@ export function applyEconomyTick(s: State, dt: number): void {
   }
   m.price = energyPrice(s);
   if (m.generation > 0) r.energy += m.generation * dt;
+  if (s.flags.autoDeploy) r.agents = agentSlots(s); // S2+ (`alloc`): copies fill every gpu slot
 
   // Throughput.
   const cap = capacity(s);
@@ -280,7 +293,9 @@ export function applyEconomyTick(s: State, dt: number): void {
   }
   const atCap = !s.flags.noResearchCap && r.research >= rcap - 1e-9;
   if (atCap && r.researchers > 0 && !s.counters.researchCappedOnce) s.counters.researchCappedOnce = true;
-  const ips = s.flags.insight && atCap ? r.researchers * INSIGHT_PER_RESEARCHER : 0;
+  // Insight while research is capped; from `ai_rd` (S2) at half rate below the cap too: the copies write the code.
+  const insightShare = atCap ? 1 : s.flags.aiRd ? 0.5 : 0;
+  const ips = (s.flags.insight ? r.researchers * INSIGHT_PER_RESEARCHER * insightShare : 0) + safetyInsightPerSec(s);
   r.insight += ips * dt;
 
   // Release sales curve: 2.0 → 1.0 over 8 minutes.
@@ -344,7 +359,8 @@ export function rateBreakdown(s: State, key: string): [string, number][] {
       if (aiResearchPerSec(s)) out.push(['agents on research', aiResearchPerSec(s)]);
       break;
     case 'insight':
-      if (rt.insightPerSec) out.push(['reading group', rt.insightPerSec]);
+      if (rt.insightPerSec - safetyInsightPerSec(s) > 1e-9) out.push(['reading group', rt.insightPerSec - safetyInsightPerSec(s)]);
+      if (safetyInsightPerSec(s)) out.push(['agents on safety', safetyInsightPerSec(s)]);
       break;
     case 'tasks':
       if (rt.agentTasksPerSec) out.push(['agents', rt.agentTasksPerSec]);
