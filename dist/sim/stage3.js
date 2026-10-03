@@ -1,7 +1,7 @@
-// Stage-3 report for `node dist/sim/bot.js <minutes> <seed> --from 3local`: runs the greedy
+// Stage-3 report for `node dist/sim/bot.js <minutes> <seed> --from 3`: runs the greedy
 // policy from a snapshot until stage 4, an ending, or the time limit, and checks the
-// stage-3 acceptance (the vote 45–60 min after the snapshot, idle streaks, the carrot,
-// run lengths, riots, the memo chain).
+// stage-3 acceptance (the vote 45–65 min after the snapshot, the automated pipeline within
+// 3 min, idle streaks, the carrot, run lengths, riots, the memo chain).
 import { Engine, TICK } from '../core/engine.js';
 import { act, affordableActions, isIdle } from '../core/actions.js';
 import { canAfford, visibleProjects } from '../core/projects.js';
@@ -138,12 +138,15 @@ export function runStage3Report(start, minutes, seed, label, print = true) {
     out(`  carrot violations  ${carrot.length}${carrot.length ? ' at ' + carrot.slice(0, 10).map(rel).join(', ') : ''}`);
     out(`  final              gov ${Math.round(s.pol.gov)} · public ${Math.round(s.pol.opinion)} · alignment ${Math.round(s.model.alignment)} · capability ${s.model.capability.toFixed(2)} · rival ${s.rival.capability.toFixed(2)} · gpus ${fmt(s.res.gpus)} · power ${s.caps.powerGw.toFixed(1)} GW`);
     const inRange = (x, lo, hi) => x !== undefined && x >= lo && x <= hi;
-    const okVote = voteAt !== null && voteAt >= 45 * 60 && voteAt <= 60 * 60;
+    const okVote = voteAt !== null && voteAt >= 45 * 60 && voteAt <= 65 * 60;
+    const pipelineAt = events.find(([, e]) => e === '+ai_rd2')?.[0];
+    const okPipeline = pipelineAt !== undefined && pipelineAt - t0 <= 180;
     const okRuns = inRange(runs.agent3, 100, 120) && inRange(runs.agent4, 100, 120);
     const okRiots = riots.length > 0 && riots.every((r) => r.end !== null);
     const okChain = order.every((id) => chain[id] !== undefined) && gaps.every((g, i) => g >= 55 && g <= (i === 2 ? 95 : 125));
-    const ok = okVote && maxIdle <= 90 && carrot.length === 0 && okRuns && okRiots && okChain;
-    out(`  stage 3 acceptance ${ok ? 'PASS' : 'FAIL'} (vote ${okVote ? 'ok' : 'NO'}, idle ${maxIdle <= 90 ? 'ok' : 'NO'}, carrot ${carrot.length === 0 ? 'ok' : 'NO'}, runs ${okRuns ? 'ok' : 'NO'}, riots ${okRiots ? 'ok' : 'NO'}, chain ${okChain ? 'ok' : 'NO'})`);
+    out(`  pipeline (ai_rd2)  ${pipelineAt === undefined ? '—' : `T+${rel(pipelineAt)}`}`);
+    const ok = okVote && okPipeline && maxIdle <= 90 && carrot.length === 0 && okRuns && okRiots && okChain;
+    out(`  stage 3 acceptance ${ok ? 'PASS' : 'FAIL'} (vote ${okVote ? 'ok' : 'NO'}, pipeline ${okPipeline ? 'ok' : 'NO'}, idle ${maxIdle <= 90 ? 'ok' : 'NO'}, carrot ${carrot.length === 0 ? 'ok' : 'NO'}, runs ${okRuns ? 'ok' : 'NO'}, riots ${okRiots ? 'ok' : 'NO'}, chain ${okChain ? 'ok' : 'NO'}; strict idle ${maxStrict} s reported)`);
     return { ok, voteAt, ending: s.ending ?? null, branch: s.branch, maxIdle, maxStrict, carrot: carrot.length, runs, riots, chain, events };
 }
 //# sourceMappingURL=stage3.js.map

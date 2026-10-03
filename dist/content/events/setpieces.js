@@ -1,5 +1,6 @@
 import { log } from '../../core/events.js';
 import { between } from '../../core/rng.js';
+import { S2_SETPIECES, S2_CHOICES } from './stage2.js';
 export const SETPIECES = [
     // ---------------------------------------------------------------- S1
     {
@@ -24,6 +25,7 @@ export const SETPIECES = [
         fire: (s) => log(s, 'the gpus arrive. one of them is the wrong model.'),
     },
     // ---------------------------------------------------------------- S2+ (later phases)
+    ...S2_SETPIECES,
 ];
 export const SETPIECE_CHOICES = [
     {
@@ -52,5 +54,6 @@ export const SETPIECE_CHOICES = [
         },
     },
     // ---------------------------------------------------------------- S2+ (later phases)
+    ...S2_CHOICES,
 ];
 //# sourceMappingURL=setpieces.js.map

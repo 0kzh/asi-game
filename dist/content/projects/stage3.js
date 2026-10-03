@@ -1,4 +1,5 @@
 import { isBought, removeProject } from '../../core/projects.js';
+import { costText } from '../../core/cost.js';
 import { release } from '../../core/models.js';
 import { log, openChoice } from '../../core/events.js';
 import { powerCapacityGw, powerGwAt, rawCapacity } from '../../core/economy.js';
@@ -6,6 +7,8 @@ import { endRiots } from '../../core/politics.js';
 import { generation } from '../models.js';
 import { NAMES } from '../names.js';
 const inS3 = (s) => s.stage === 3;
+/** The automated pipeline's price: about three minutes of the research stage 2 leaves running (tuning-log.md, the merge). */
+export const AI_RD2_RESEARCH = 7000;
 const fromS3 = (s) => s.stage >= 3;
 /** Share of power capacity every deployed agent would draw. */
 export function powerShare(s) {
@@ -32,16 +35,24 @@ function snapModel(s, key, score) {
     s.model = { ...s.model, key: g.key, gen: g.gen, name: g.name, capability: g.capability + s.mods.capBonus, released: true, releasedAt: s.t, score };
 }
 export const CURES = ['cancer', "alzheimer's", 'male pattern baldness'];
+/** Demand from agent-2's public launch (release_agent2, stage 2). A lab that kept agent-2 internal
+ *  gets it with agent-3-mini instead, so after the mini both stage-2 choices sell the same product. */
+const AGENT2_LAUNCH_DEMAND = 3;
 /** release_agent3's effects beyond release() itself (also used by the board's choice). */
 function miniEffects(s) {
     s.mods.demandMult *= 4;
+    if (s.flags.agent2Internal && !s.flags.publicCaughtUp) {
+        s.flags.publicCaughtUp = true;
+        s.mods.demandMult *= AGENT2_LAUNCH_DEMAND;
+        log(s, 'the public had agent-1-plus until today. it skips a generation.');
+    }
     s.pol.jobsMult *= 2;
     s.pol.opinion -= 10;
 }
 export const PROJECTS = [
     {
         id: 'ai_rd2', stage: 3, title: 'automated research pipeline',
-        cost: { research: 20000 },
+        cost: { research: AI_RD2_RESEARCH },
         trigger: inS3,
         effect: (s) => { s.flags.noResearchCap = true; s.mods.rdMult *= 3; },
         done: 'the humans mostly watch now.',
@@ -189,7 +200,8 @@ export const PROJECTS = [
     {
         id: 'defense', stage: 3, title: 'defense contract',
         costLabel: () => 'a meeting',
-        trigger: (s) => inS3(s) && (isBought(s, 'gov_briefing') || !!s.flags.politics) && s.model.capability >= 3.2,
+        // After agent-3: continuous learning (stage 2) and neuralese alone can reach 3.2 minutes into the stage.
+        trigger: (s) => inS3(s) && (isBought(s, 'gov_briefing') || !!s.flags.politics) && !!s.flags['trained:agent3'] && s.model.capability >= 3.2,
         effect: (s) => { openChoice(s, 'defense'); },
         desc: 'the general does not say the word iran.',
     },
@@ -233,6 +245,9 @@ export const PROJECTS = [
         id: 'sez', stage: 3, title: 'special economic zone',
         cost: { funds: 5e10 },
         req: { gov: 20 },
+        // The zone needs a strategic partner: it waits for the strategic round (832M tasks), whatever the revenue.
+        costLabel: (s) => `${costText({ funds: 5e10 }, { gov: 20 })}${s.flags['round:strategic round'] ? '' : ', a strategic partner'}`,
+        extraAfford: (s) => !!s.flags['round:strategic round'],
         trigger: (s) => inS3(s) && (powerAtCap(s) || s.res.gpus >= 0.9 * s.caps.gpus),
         effect: (s) => {
             s.caps.powerGw *= 5;

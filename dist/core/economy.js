@@ -103,30 +103,57 @@ export function rdFactor(capability) {
 export function aiResearchPerSec(s) {
     if (!s.flags.aiRd)
         return 0;
-    return s.res.agents * s.alloc.research * rdFactor(s.model.capability) * (s.mods.rdMult ?? 1);
+    return s.res.agents * s.alloc.research * rdFactor(s.model.capability) * s.mods.rdMult;
+}
+/** The "r&d multiplier": 1 + AI research / human research (allocation rows from S2, stats box from S3). */
+export function rdMultiplier(s) {
+    return 1 + aiResearchPerSec(s) / Math.max(1, s.res.researchers);
+}
+/** Copies on safety (S2+, the allocation panel's safety row): 0.2 insight per unit of research they would do. */
+export function safetyInsightPerSec(s) {
+    return s.res.agents * s.alloc.safety * rdFactor(s.model.capability) * s.mods.rdMult * 0.2;
 }
 // ------------------------------------------------------------------ prices
 export function agentCost(s) {
     return AGENT_BASE_COST * Math.pow(AGENT_COST_GROWTH, s.res.agents);
 }
-/** S3 bulk compute: list price per GPU, before the price multipliers. */
-export const GPU_BULK_COST = 20000;
-/** GPUs per `buy gpu` click: 1 until S3; then 10% of the fleet rounded down to a power of ten, within the cap. */
-export function gpuBlock(s) {
-    if (!s.flags.bulkGpus)
-        return 1;
-    const b = Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, s.res.gpus))) - 1));
+/** A datacenter tier's lot: 1 until the first datacenter, then cap / 125 (4, 40, 400…). */
+function tierLot(s) {
+    return Math.max(1, Math.round(Math.min(1e7, s.caps.gpus) / 125));
+}
+/** GPUs per `buy gpu` click (a lot): the tier's lot; from S3 (the bulk market) at least 10% of the
+ *  fleet rounded down to a power of ten. A lot never goes past the cap. */
+export function gpuBatch(s) {
+    let b = tierLot(s);
+    if (s.flags.bulkGpus)
+        b = Math.max(b, Math.pow(10, Math.max(0, Math.floor(Math.log10(Math.max(1, s.res.gpus))) - 1)));
     return Math.max(1, Math.min(b, s.caps.gpus - s.res.gpus));
 }
-/** Price of the next `buy gpu` click. */
+/** Price of one gpu at the current point on the curve, before shocks.
+ *  S1–S2: each lot is one ×1.07 step since the last datacenter (`caps.gpuCurveStart`), and a
+ *  datacenter resets the curve to its tier's bulk price (content raiseGpuCap).
+ *  S3+: the curve stops climbing (`bulkPrice` folds the last step into the multiplier and sets
+ *  gpuCurveStart to the fleet at that moment) and bulk contracts get cheaper with volume:
+ *  ×√(fleet then / fleet now). Both branches agree at the hand-off. */
+export function gpuUnitCost(s) {
+    const base = GPU_BASE_COST * s.mods.gpuPriceMult;
+    if (s.flags.bulkGpus)
+        return base * Math.sqrt(Math.max(1, s.caps.gpuCurveStart) / Math.max(1, s.res.gpus));
+    return base * Math.pow(GPU_COST_GROWTH, Math.max(0, s.res.gpus - 1 - s.caps.gpuCurveStart) / tierLot(s));
+}
+/** S3 entry: the climbing curve becomes the bulk market at the same per-gpu price. */
+export function bulkPrice(s) {
+    if (s.flags.bulkGpus)
+        return;
+    s.mods.gpuPriceMult = gpuUnitCost(s) / GPU_BASE_COST;
+    s.caps.gpuCurveStart = s.res.gpus;
+    s.flags.bulkGpus = true;
+}
+/** Price of one click (one lot), shocks included: the gpu shipment delay (S1, ×1.3) and the S3 chip shock (×3). */
 export function gpuCost(s) {
-    if (s.flags.bulkGpus) {
-        const shock = (s.timed.chip_shock ?? 0) > s.t ? 3 : 1;
-        return GPU_BULK_COST * gpuBlock(s) * s.mods.gpuPriceMult * shock;
-    }
-    const n = Math.max(0, s.res.gpus - 1 - s.caps.gpuCurveStart);
-    const shock = (s.timed.gpu_delay ?? 0) > s.t ? 1.3 : 1;
-    return GPU_BASE_COST * Math.pow(GPU_COST_GROWTH, n) * s.mods.gpuPriceMult * shock;
+    const delay = (s.timed.gpu_delay ?? 0) > s.t ? 1.3 : 1;
+    const shock = (s.timed.chip_shock ?? 0) > s.t ? 3 : 1;
+    return gpuBatch(s) * gpuUnitCost(s) * delay * shock;
 }
 export function marketingCost(s) {
     return MARKETING_BASE_COST * Math.pow(2, s.market.marketing);
@@ -172,7 +199,7 @@ export function canBuyGpu(s) {
 export function buyGpu(s) {
     if (!canBuyGpu(s))
         return false;
-    const n = gpuBlock(s);
+    const n = gpuBatch(s);
     s.res.funds -= gpuCost(s);
     s.res.gpus += n;
     if (!s.milestones.stamps.firstGpu)
@@ -254,6 +281,8 @@ export function applyEconomyTick(s, dt) {
     m.price = energyPrice(s);
     if (m.generation > 0)
         r.energy += m.generation * dt;
+    if (s.flags.autoDeploy)
+        r.agents = agentSlots(s); // copies fill every gpu slot (S2 `alloc`; S3 entry sets it too)
     // Throughput.
     const cap = capacity(s);
     const dem = demand(s);
@@ -293,8 +322,10 @@ export function applyEconomyTick(s, dt) {
     const atCap = !s.flags.noResearchCap && r.research >= rcap - 1e-9;
     if (atCap && r.researchers > 0 && !s.counters.researchCappedOnce)
         s.counters.researchCappedOnce = true;
-    // Once the automated pipeline removes the cap, the researchers read the results: insight keeps accruing.
-    const ips = s.flags.insight && (atCap || s.flags.noResearchCap) ? r.researchers * INSIGHT_PER_RESEARCHER : 0;
+    // Insight while research is capped; from `ai_rd` (S2) at half rate below the cap too (the copies
+    // write the code); once `ai_rd2` (S3) removes the cap, at full rate (the researchers read the results).
+    const insightShare = atCap || s.flags.noResearchCap ? 1 : s.flags.aiRd ? 0.5 : 0;
+    const ips = (s.flags.insight ? r.researchers * INSIGHT_PER_RESEARCHER * insightShare : 0) + safetyInsightPerSec(s);
     r.insight += ips * dt;
     // Release sales curve: 2.0 → 1.0 over 8 minutes.
     if (s.market.productMult > 1)
@@ -372,8 +403,10 @@ export function rateBreakdown(s, key) {
                 out.push(['agents on research', aiResearchPerSec(s)]);
             break;
         case 'insight':
-            if (rt.insightPerSec)
-                out.push([s.flags.noResearchCap ? 'researchers' : 'reading group', rt.insightPerSec]);
+            if (rt.insightPerSec - safetyInsightPerSec(s) > 1e-9)
+                out.push([s.flags.noResearchCap ? 'researchers' : 'reading group', rt.insightPerSec - safetyInsightPerSec(s)]);
+            if (safetyInsightPerSec(s))
+                out.push(['agents on safety', safetyInsightPerSec(s)]);
             break;
         case 'tasks':
             if (rt.agentTasksPerSec)

@@ -1,5 +1,5 @@
 import { fmtEnergy, fmtInt, fmtPrice } from '../../core/format.js';
-import { agentCost, agentSlots, energyPrice, gpuBlock, gpuCost } from '../../core/economy.js';
+import { agentCost, agentSlots, energyPrice, gpuBatch, gpuCost } from '../../core/economy.js';
 import { actionButton, h, panelTitle, setText, show, syncAction } from '../dom.js';
 let panel;
 let title;
@@ -38,7 +38,7 @@ export function update(s) {
     syncAction(deployBtn, s, `deploy agent (${fmtPrice(agentCost(s))})`);
     show(gpuRow, !!f.gpuRow);
     setText(gpuVal, `gpus ${fmtInt(s.res.gpus)}${s.res.gpus >= s.caps.gpus ? ' (full)' : ''}`);
-    const n = gpuBlock(s);
+    const n = gpuBatch(s);
     syncAction(gpuBtn, s, `buy ${n > 1 ? `${fmtInt(n)} gpus` : 'gpu'} (${fmtPrice(gpuCost(s))})`);
     setText(energyVal, `energy ${fmtEnergy(s.res.energy)}`);
     syncAction(energyBtn, s, `buy ${fmtEnergy(s.energyMkt.block)} (${fmtPrice(energyPrice(s))})`);

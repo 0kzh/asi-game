@@ -1,27 +1,62 @@
 import * as eco from './economy.js';
-import { buyProject, canBuy, checkProjects, isBought, visibleProjects } from './projects.js';
-import { release, startTrainingFromModal, canStartRun } from './models.js';
-import { choose, choiceEnabled, currentScene } from './events.js';
+import { buyProject, canBuy, visibleProjects } from './projects.js';
+import { shipWaitingRun, startTrainingFromModal, canStartRun, canSafetyPass, safetyPass } from './models.js';
+import { monthsBehind } from './rival.js';
+import { choose, choiceEnabled, currentScene, log } from './events.js';
 import { canPay, meets } from './cost.js';
 import { REG } from './registry.js';
 import { projectCost } from './projects.js';
 const noModal = (s) => !s.modal;
-/** The model panel's [release]: if the generation has a `release_<key>` project, buy it
- *  (so its effects apply once, whichever button was used); otherwise release directly. */
-function releaseAction(s) {
-    const key = s.training?.key;
-    if (!key)
-        return;
-    const id = `release_${key}`;
-    if (REG.projectById[id] && !isBought(s, id)) {
-        checkProjects(s);
-        if (canBuy(s, id)) {
-            buyProject(s, id);
-            return;
+const STEP = 0.1;
+const MIN_DEPLOY = 0.1;
+const tenth = (x) => Math.round(x * 10) / 10;
+function allocRowVisible(s, row) {
+    if (!s.flags.allocPanel)
+        return false;
+    return row !== 'safety' || !!s.flags.evalSuite;
+}
+/** ±10% on a row, always summing to 100: research and safety trade with deployment;
+ *  deployment [+] takes from research first, then safety; deployment never drops below 10%. */
+function allocMove(s, row, dir, apply) {
+    const a = { ...s.alloc };
+    if (row === 'deploy') {
+        if (dir > 0) {
+            const from = a.research >= STEP - 1e-9 ? 'research' : a.safety >= STEP - 1e-9 && s.flags.evalSuite ? 'safety' : null;
+            if (!from)
+                return false;
+            a[from] = tenth(a[from] - STEP);
+            a.deploy = tenth(a.deploy + STEP);
+        }
+        else {
+            if (a.deploy < MIN_DEPLOY + STEP - 1e-9)
+                return false;
+            a.deploy = tenth(a.deploy - STEP);
+            a.research = tenth(a.research + STEP);
         }
     }
-    release(s);
+    else if (dir > 0) {
+        if (a.deploy < MIN_DEPLOY + STEP - 1e-9)
+            return false;
+        a.deploy = tenth(a.deploy - STEP);
+        a[row] = tenth(a[row] + STEP);
+    }
+    else {
+        if (a[row] < STEP - 1e-9)
+            return false;
+        a[row] = tenth(a[row] - STEP);
+        a.deploy = tenth(a.deploy + STEP);
+    }
+    if (apply)
+        s.alloc = a;
+    return true;
 }
+const ALLOC_ACTIONS = ['deploy', 'research', 'safety'].flatMap((row) => [1, -1].map((dir) => ({
+    id: `alloc_${row}_${dir > 0 ? 'up' : 'down'}`,
+    free: true,
+    visible: (s) => allocRowVisible(s, row),
+    enabled: (s) => allocMove(s, row, dir, false),
+    run: (s) => { allocMove(s, row, dir, true); },
+})));
 export const ACTIONS = [
     { id: 'complete_task', free: true, visible: (s) => !s.flags.noManual, enabled: (s) => noModal(s) && eco.canCompleteTask(s), run: eco.completeTask },
     { id: 'price_down', free: true, visible: (s) => !!s.flags.priceRow && !s.flags.autoPricing, enabled: (s) => s.market.price > 0.01, run: eco.priceDown },
@@ -32,7 +67,15 @@ export const ACTIONS = [
     { id: 'buy_energy', visible: () => true, enabled: (s) => noModal(s) && eco.canBuyEnergy(s), run: eco.buyEnergy },
     { id: 'hire_researcher', visible: (s) => !!s.flags.lab, enabled: (s) => noModal(s) && eco.freeHeadcount(s) >= 1, run: eco.hireResearcher },
     { id: 'hire_engineer', visible: (s) => !!s.flags.lab, enabled: (s) => noModal(s) && eco.freeHeadcount(s) >= 1, run: eco.hireEngineer },
-    { id: 'release', visible: (s) => s.training?.phase === 'done', enabled: (s) => noModal(s) && s.training?.phase === 'done', run: releaseAction },
+    { id: 'release', visible: (s) => s.training?.phase === 'done', enabled: (s) => noModal(s) && s.training?.phase === 'done', run: (s) => { shipWaitingRun(s); } },
+    {
+        id: 'safety_pass',
+        visible: (s) => !!s.flags.evalSuite && s.training?.phase === 'done',
+        enabled: (s) => noModal(s) && canSafetyPass(s),
+        run: (s) => { if (safetyPass(s))
+            log(s, `another safety pass. ${s.rival.name} is ${monthsBehind(s)} months behind.`); },
+    },
+    ...ALLOC_ACTIONS,
     // The training budget modal.
     ...[0.25, 0.5, 1].map((b) => ({
         id: `budget:${b}`,

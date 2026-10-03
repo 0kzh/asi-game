@@ -1,7 +1,11 @@
 import { dayOf } from '../core/stages.js';
 import { shippedLine } from '../core/models.js';
 import { log } from '../core/events.js';
+import { bulkPrice } from '../core/economy.js';
 import { freezePower } from '../core/takeoff.js';
+import { NAMES } from './names.js';
+/** Stage 2's gpu market: every gpu price is multiplied by this from march 2026 (tuning-log.md). */
+export const S2_GPU_MARKET = 3;
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 /** S1: tasks in log space (100 → 50k) for 80% of the stage, agent-1's run for the rest. */
 function s1Progress(s) {
@@ -11,6 +15,13 @@ function s1Progress(s) {
 }
 function capProgress(s, from, to) {
     return clamp01((s.model.capability - from) / (to - from));
+}
+/** S2: the frontier (deployed, internal, or the run in progress) from 2.0 to 2.8 → march 2026 … january 2027;
+ *  the last month is the theft. */
+function s2Progress(s) {
+    const tr = s.training;
+    const frontier = Math.max(s.model.capability, tr ? tr.capNow : 0);
+    return 0.9 * clamp01((frontier - 2.0) / 0.8) + (s.flags.theftResolved ? 0.1 : 0);
 }
 export const STAGES = [
     {
@@ -29,9 +40,15 @@ export const STAGES = [
         exit: (s) => (s.flags.theftResolved ? 3 : null),
         enter: (s) => {
             s.flags.stage2 = true;
-            s.flags.allocPanel = true; // placeholder until the `alloc` project (stage 2 content)
+            if (s.milestones.stamps.stage2 === undefined)
+                s.milestones.stamps.stage2 = s.t;
+            log(s, 'agent-1 is in every terminal. the cluster is the business now.');
+            if (S2_GPU_MARKET !== 1) {
+                s.mods.gpuPriceMult *= S2_GPU_MARKET;
+                log(s, `${NAMES.chips.gpus} is sold out through next year. gpus cost ×${S2_GPU_MARKET} now.`);
+            }
         },
-        progress: (s) => capProgress(s, 2.0, 2.8),
+        progress: s2Progress,
     },
     {
         id: 3, name: 'takeoff',
@@ -50,11 +67,11 @@ export const STAGES = [
             s.flags.noManual = true; // core: complete_task hidden
             s.flags.autoPricing = true; // core: market-clearing price; price arrows and marketing hidden
             s.flags.autoDeploy = true; // copies deploy themselves onto every gpu slot
-            s.flags.bulkGpus = true; // buy gpu buys blocks at a bulk price
+            bulkPrice(s); // buy gpu buys bulk lots; the per-gpu price carries over (economy.gpuUnitCost)
             // The power ceiling: capacity stops following the gpu count (design §3.5).
             s.flags.power = true;
             freezePower(s);
-            // The automated pipeline (20,000 research) must be reachable whatever the cap was.
+            // The automated pipeline and self-play must be reachable whatever the cap was: at least 20,000.
             const base = 150 + 250 * s.res.engineers;
             s.caps.researchBonus = Math.max(s.caps.researchBonus, 20000 - base);
             log(s, 'pricing is automated. you have not personally completed a task in months.');

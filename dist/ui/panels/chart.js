@@ -42,8 +42,9 @@ function draw(s) {
     ctx.fillRect(0, 0, W, H);
     ctx.font = '10px Helvetica, Arial, sans-serif';
     ctx.textBaseline = 'middle';
-    // Reference lines, labels at the right edge; skip labels that would overlap.
+    // Reference lines; labels at the right edge (drawn last, over the curves); skip labels that would overlap.
     let lastLabelY = Infinity;
+    const labels = [];
     ctx.lineWidth = 1;
     for (const [c, label] of CAPABILITY_LINES) {
         if (c < yMin || c > yMax)
@@ -55,10 +56,9 @@ function draw(s) {
         ctx.moveTo(padL, yy);
         ctx.lineTo(W - 2, yy);
         ctx.stroke();
-        if (lastLabelY - yy >= 10 && yy >= 16) {
-            ctx.fillStyle = grey;
-            ctx.textAlign = 'right';
-            ctx.fillText(label, W - 4, yy - 5);
+        const underLegend = yy - 5 < padT + 18 && ctx.measureText(label).width > W - 8 - (padL + 150);
+        if (lastLabelY - yy >= 10 && yy >= 16 && !underLegend) {
+            labels.push([label, yy - 5]);
             lastLabelY = yy;
         }
     }
@@ -121,6 +121,17 @@ function draw(s) {
     ctx.beginPath();
     pts.forEach((p, i) => (i ? ctx.lineTo(x(p[0]), y(p[1])) : ctx.moveTo(x(p[0]), y(p[1]))));
     ctx.stroke();
+    // Reference labels on a halo of the background, so a curve passing behind never strikes them through.
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = bg;
+    ctx.fillStyle = grey;
+    for (const [label, ly] of labels) {
+        ctx.strokeText(label, W - 4, ly);
+        ctx.fillText(label, W - 4, ly);
+    }
     ctx.lineWidth = 1;
 }
 //# sourceMappingURL=chart.js.map
